@@ -1,0 +1,32 @@
+{
+  "name": "verilist",
+  "version": "1.0.0",
+  "description": "A blockchain registry that stops fake and duplicate product listings on online marketplaces.",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "seed:local": "hardhat run scripts/seed.js --network localhost",
+    "e2e": "hardhat run scripts/e2e-check.js",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "frontend:install": "npm --prefix frontend install",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "verify-all": "node scripts/verify-all.js",
+    "ui-smoke": "node scripts/ui-smoke.js",
+    "ui-demo": "node scripts/ui-demo.js"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^18.0.5",
+    "hardhat": "^2.29.1",
+    "playwright-core": "^1.63.0"
+  }
+}
