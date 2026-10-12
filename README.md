@@ -16,16 +16,18 @@ Documents: [VIVA_GUIDE.md](VIVA_GUIDE.md) (study guide) · [DECISIONS.md](DECISI
 
 ```mermaid
 flowchart LR
-    Admin(["Admin<br/>(platform consortium)"])
+    Admin(["Admin<br/>(one wallet, or a multisig)"])
     Brand(["Brand<br/>(e.g. Fastrack)"])
     Market(["Marketplace<br/>(e.g. Flipkart)"])
     Buyer(["Buyer / public"])
+    Multi(["AdminMultisig<br/>M-of-N signers + timelock<br/>(optional admin)"])
 
     subgraph Chain["Blockchain"]
         PR["ProductRegistry<br/>brands · products · versions · authorized sellers"]
         LR["ListingRegistry<br/>marketplaces · listings · live verification"]
     end
 
+    Multi -. "can be the admin of both" .-> Admin
     Admin -- "verifyBrand / revokeBrand" --> PR
     Admin -- "registerMarketplace / setMarketplaceActive" --> LR
     Brand -- "registerProduct · updateProductDetails<br/>setProductActive · authorizeSeller · revokeSeller" --> PR
@@ -38,7 +40,9 @@ flowchart LR
     UI --> LR
 ```
 
-Both contracts inherit a small hand-written `Ownable` (the owner is the admin).
+Both registries inherit a small hand-written `Ownable` (the owner is the admin). Ownership changes in **two steps**
+(the admin offers, the new owner accepts), and the admin can be a **multisig with a timelock** instead of one wallet
+(see "Safer admin" below).
 
 ---
 
@@ -148,8 +152,9 @@ The platform admin has switched this marketplace off.* **Activate** it to bring 
 | `npm run compile` | Compiles the contracts (zero warnings). |
 | `npm test` | Runs all Hardhat tests. |
 | `npm run coverage` | Tests with a coverage report. |
-| `npm run e2e` | A self-contained 20-step end-to-end story on an in-process chain. Exits 1 on any failure. |
+| `npm run e2e` | A self-contained 24-step end-to-end story on an in-process chain, including the multisig handover. Exits 1 on any failure. |
 | `npm run verify-all` | Compile → test → coverage → e2e → frontend build, stopping at the first failure. |
+| `npm run multisig:local` | Hands the admin role of a **seeded local chain** over to a 2-of-3 multisig with a timelock (section "Safer admin"). The old admin loses its power, so run it last. |
 | `npm run ui-smoke` | A headless-browser test of the website. Needs the 3-terminal setup running on a freshly seeded chain, plus a browser (see below). It does not change chain state. |
 | `npm run ui-demo` | Plays the 5-minute demo script above automatically (same clicks, same checks). **It changes chain state**, so run it once on a freshly seeded chain; to run it again, restart the node, deploy and seed again. |
 
@@ -168,6 +173,40 @@ BROWSER_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm 
 
 It checks the Verify view, a rejected listing, role messages, keyboard focus, reduced motion, 375px width, and a
 **mocked** wallet for MetaMask mode. It never changes chain state.
+
+---
+
+## Safer admin: two-step handover, multisig and timelock
+
+By default one admin wallet decides who is a verified brand and who is a registered marketplace. That is a single
+point of failure, so the project includes a way to remove it:
+
+1. **Two-step ownership.** `transferOwnership(newOwner)` only *offers* the admin role. Nothing changes until the new
+   owner calls `acceptOwnership()`. A wrong address can never lock you out, because it can never accept.
+2. **Multisig admin** (`contracts/AdminMultisig.sol`). A shared admin: *M of N* signers must approve every action.
+   No single person or stolen key can verify, revoke or register anything alone.
+3. **Timelock.** After enough approvals there is a waiting time before the action can run. During it, any signer can
+   withdraw an approval (`revokeApproval`), which cancels the action and resets the timer.
+
+**Try it locally** (after the normal 3-terminal setup and seed):
+
+```bash
+npm run multisig:local
+```
+
+It deploys a 2-of-3 multisig (signers are Hardhat accounts #8, #9 and #10, with a 10 second timelock), offers both
+registries to it, and lets the signers accept through the multisig's own approval process. Reload the site, choose
+**Admin** in *Acting as* and open the **Admin** tab: it now explains that the admin is a shared multisig (and shows
+"2 of 3 must approve, then 10 seconds of waiting"), and the admin forms are gone. The activity feed shows the handover.
+To go back, restart the node and run `npm run deploy:local && npm run seed:local`.
+
+On a real network, `npm run multisig:sepolia` deploys the multisig and only *offers* ownership; the real signers then
+accept with their own wallets (the script prints the exact calls). Set `MULTISIG_OWNERS`, and optionally
+`MULTISIG_THRESHOLD` and `MULTISIG_DELAY_SECONDS`, in `.env` or the command line. Until the signers accept, the current
+admin keeps full control, so nothing is lost if the handover is never finished.
+
+This website cannot send multisig proposals (the signers use their own tools or a script). `AdminMultisig` is a small
+teaching implementation; for real money use a widely audited multisig such as Safe. See `DECISIONS.md`.
 
 ---
 
@@ -193,6 +232,8 @@ It checks the Verify view, a rejected listing, role messages, keyboard focus, re
    MetaMask. On the **Admin** tab, enter each address and a name to verify a brand or register a marketplace. In
    dropdowns, choose *Other address…* to paste any wallet address.
 
+To remove the single-admin risk on a real network, hand the admin role to a multisig: see **Safer admin** above.
+
 To go back to the local demo, run `npm run deploy:local` again: it overwrites `deployment.json`.
 
 ---
@@ -206,6 +247,13 @@ A local node forgets everything when it stops. Start it again (`npm run node`), 
 **`seed:local` says "already seeded".**
 You can only seed once per chain. Stop the node (press `Ctrl+C` in terminal 1), start it again with `npm run node`,
 then run `npm run deploy:local && npm run seed:local`.
+
+**After `npm run multisig:local`, the Admin tab has no forms and `seed:local` fails.**
+That is intended: the old admin handed its power to the multisig. Restart the node (`Ctrl+C`, then `npm run node`) and run
+`npm run deploy:local && npm run seed:local` again. Run `multisig:local` only at the very end of a demo.
+
+**`multisig:local` says a registry "is owned by" another address.**
+The handover was already done on this chain. Restart the node, deploy and seed again.
 
 **MetaMask shows nonce or "block tag" errors after you restarted the local node.**
 Reset the MetaMask account: *Settings → Advanced → Clear activity tab data* (older versions: *Reset account*).
@@ -265,6 +313,20 @@ test titles, so you can run one rule's tests with, for example, `npx hardhat tes
 | **R11** | Only the listing's marketplace or seller can remove it | LR `[R11] lets the marketplace remove its listing and emits ListingRemoved` · LR `[R11] lets the seller remove the listing` · LR `[R11] reverts NotListingParty for a stranger, the brand, another marketplace and another seller` · plus "reverts ListingNotActive when removing twice" |
 | **R12** | Every state change emits an event | LR `[R12] every state-changing function emits its event` (all 13 state-changing functions) · plus an `emit(...).withArgs(...)` assertion in the success test of each function |
 
+**Admin safety tests (beyond R1 to R12).** `OWN` = the "Deployment and Ownable" group of `test/ProductRegistry.test.js`,
+`MS` = `test/AdminMultisig.test.js`.
+
+| Feature | Tests |
+|---|---|
+| Two-step ownership | OWN `step 1: transferOwnership only OFFERS ownership…` · `until the offer is accepted, the owner keeps full rights…` · `step 2: the offered address accepts, becomes owner, and the offer is cleared` · `after accepting, admin rights moved to the new owner and away from the old one` · `only the offered address can accept…` · `an offer can be accepted only once` · `typo safety: offering ownership to a wrong address changes nothing…` |
+| Multisig setup | MS `Constructor` group (every invalid setup has its own error; the extreme valid values are accepted) |
+| Approvals and timelock | MS `the approval that reaches the threshold starts the timelock` · `a further approval after the threshold does not restart the timelock` · `dropping below the threshold blocks the action and RESETS the timelock` · `waits for the timelock, then runs the action AS the multisig; anyone may trigger it` |
+| Safe failure | MS `passes on the called contract's own error, and leaves the proposal open to retry` · `reports ExecutionFailed when the called contract reverts without a reason` · `cannot be executed twice, approved or withdrawn after execution` · ETH handling |
+| Whole story | `test/Integration.test.js` `admin safety: hand the admin role to a 2-of-3 multisig…` and `npm run e2e` steps 21 to 24 |
+
+I also checked that these tests really catch bugs: five deliberate breakages of the contracts (no timelock check, no
+"executed" flag, no timelock reset, threshold off by one, anyone can accept ownership) were each caught.
+
 Other tests: `ETH handling` groups in both contract suites (sending ETH reverts), pagination tests, the ownership
 tests, `test/Integration.test.js` (the whole Fastrack story), and `test/ErrorMessages.test.js` (every custom
 error has a friendly message in the website).
@@ -274,9 +336,9 @@ error has a friendly message in the website).
 ## Project layout
 
 ```
-contracts/    Ownable.sol · ProductRegistry.sol · ListingRegistry.sol
-test/         ProductRegistry · ListingRegistry · Integration · ErrorMessages
-scripts/      deploy.js · seed.js · e2e-check.js · verify-all.js · ui-smoke.js
+contracts/    Ownable.sol · ProductRegistry.sol · ListingRegistry.sol · AdminMultisig.sol
+test/         ProductRegistry · ListingRegistry · AdminMultisig · Integration · ErrorMessages
+scripts/      deploy.js · seed.js · e2e-check.js · verify-all.js · deploy-multisig.js · ui-smoke.js · ui-demo.js
 frontend/     Vite + React app (src/contracts/ holds deployment.json and demo-accounts.json, written by the scripts)
 hardhat.config.js · package.json · .env.example · .gitignore
 README.md · VIVA_GUIDE.md · DECISIONS.md

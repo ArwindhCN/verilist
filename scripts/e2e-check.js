@@ -4,6 +4,7 @@
 // The process exits with code 1 if any step fails.
 const assert = require("node:assert/strict");
 const hre = require("hardhat");
+const { time } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
 
 const { ethers } = hre;
 
@@ -70,8 +71,9 @@ async function expectEthRejected(signer, contract) {
 }
 
 async function main() {
-  const [admin, fastrack, titan, flipkart, amazon, retailNet, quickShop, fakeDeals, stranger] =
-    await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  const [admin, fastrack, titan, flipkart, amazon, retailNet, quickShop, fakeDeals, stranger] = signers;
+  const [signer1, signer2, signer3] = signers.slice(10, 13); // the three signers of the admin multisig
 
   // Shared state between steps.
   let products;
@@ -301,6 +303,68 @@ async function main() {
   await step("Both contracts reject plain ETH transfers", async () => {
     await expectEthRejected(admin, products);
     await expectEthRejected(admin, listings);
+  });
+
+  // ---- Admin safety: two-step handover to a multisig with a timelock (runs last: it moves the admin role) ----
+  const HOUR = 3600;
+  let multisig;
+  const encode = (contract, fn, args = []) => contract.interface.encodeFunctionData(fn, args);
+
+  await step("Admin safety: transferOwnership only OFFERS the admin role; a typo cannot lock anyone out", async () => {
+    const wrongAddress = ethers.Wallet.createRandom().address; // nobody controls this wallet
+    await mined(products.connect(admin).transferOwnership(wrongAddress));
+    assert.equal(await products.owner(), admin.address); // nothing changed
+    assert.equal(await products.pendingOwner(), wrongAddress);
+    await mined(products.connect(admin).verifyBrand(stranger.address, "StillWorks")); // the admin still has full power
+    await expectRevert(products.connect(stranger).acceptOwnership(), products, "NotPendingOwner");
+  });
+
+  await step("Admin safety: deploy a 2-of-3 multisig with a 1 hour timelock and hand BOTH registries over to it", async () => {
+    multisig = await (await ethers.getContractFactory("AdminMultisig")).deploy(
+      [signer1.address, signer2.address, signer3.address],
+      2,
+      HOUR
+    );
+    const multisigAddress = await multisig.getAddress();
+    await mined(products.connect(admin).transferOwnership(multisigAddress)); // replaces the wrong offer
+    await mined(listings.connect(admin).transferOwnership(multisigAddress));
+
+    // The multisig must accept through its own process: propose, approve, wait, execute.
+    await mined(multisig.connect(signer1).propose(await products.getAddress(), encode(products, "acceptOwnership")));
+    await mined(multisig.connect(signer1).propose(await listings.getAddress(), encode(listings, "acceptOwnership")));
+    await mined(multisig.connect(signer2).approve(1));
+    await mined(multisig.connect(signer2).approve(2));
+    await expectRevert(multisig.execute(1), multisig, "TimelockNotElapsed"); // too early
+    await time.increase(HOUR);
+    await mined(multisig.execute(1));
+    await mined(multisig.execute(2));
+    assert.equal(await products.owner(), multisigAddress);
+    assert.equal(await listings.owner(), multisigAddress);
+  });
+
+  await step("Admin safety: the old admin wallet has no power left, and one signer alone cannot act", async () => {
+    await expectRevert(products.connect(admin).verifyBrand(quickShop.address, "QuickShop Brand"), products, "NotOwner");
+    await expectRevert(listings.connect(admin).registerMarketplace(stranger.address, "X"), listings, "NotOwner");
+    await mined(multisig.connect(signer1).propose(await products.getAddress(), encode(products, "verifyBrand", [quickShop.address, "QuickShop Brand"]))); // proposal 3
+    await time.increase(HOUR * 2);
+    await expectRevert(multisig.execute(3), multisig, "NotEnoughApprovals"); // one approval is not enough, however long we wait
+    assert.equal((await products.getBrand(quickShop.address)).verified, false);
+  });
+
+  await step("Admin safety: two signers approve and, after the wait, the action runs; a bad proposal is cancelled in time", async () => {
+    await mined(multisig.connect(signer2).approve(3));
+    await expectRevert(multisig.execute(3), multisig, "TimelockNotElapsed");
+    await time.increase(HOUR);
+    await mined(multisig.connect(stranger).execute(3)); // anyone may trigger an approved action
+    assert.equal((await products.getBrand(quickShop.address)).verified, true);
+
+    // A bad proposal: revoke that brand again. Two signers approve, then one notices and withdraws during the wait.
+    await mined(multisig.connect(signer1).propose(await products.getAddress(), encode(products, "revokeBrand", [quickShop.address]))); // 4
+    await mined(multisig.connect(signer3).approve(4));
+    await mined(multisig.connect(signer3).revokeApproval(4));
+    await time.increase(HOUR * 2);
+    await expectRevert(multisig.execute(4), multisig, "NotEnoughApprovals");
+    assert.equal((await products.getBrand(quickShop.address)).verified, true); // the brand is still verified
   });
 
   const failed = results.filter((r) => !r.ok);

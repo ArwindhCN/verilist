@@ -58,21 +58,83 @@ describe("ProductRegistry", function () {
         .withArgs(ethers.ZeroAddress, admin.address);
     });
 
-    it("lets the owner transfer ownership and emits the event", async function () {
+    it("step 1: transferOwnership only OFFERS ownership (pendingOwner set, owner unchanged, event emitted)", async function () {
       const { registry, admin, stranger } = await loadFixture(deployFixture);
+      expect(await registry.pendingOwner()).to.equal(ethers.ZeroAddress);
       await expect(registry.transferOwnership(stranger.address))
+        .to.emit(registry, "OwnershipTransferStarted")
+        .withArgs(admin.address, stranger.address);
+      expect(await registry.owner()).to.equal(admin.address);
+      expect(await registry.pendingOwner()).to.equal(stranger.address);
+    });
+
+    it("until the offer is accepted, the owner keeps full rights and the offered address has none", async function () {
+      const { registry, admin, stranger, fastrack } = await loadFixture(deployFixture);
+      await registry.transferOwnership(stranger.address);
+      await expect(registry.connect(stranger).verifyBrand(fastrack.address, "Fastrack"))
+        .to.be.revertedWithCustomError(registry, "NotOwner")
+        .withArgs(stranger.address);
+      await expect(registry.connect(admin).verifyBrand(fastrack.address, "Fastrack")).to.not.be.reverted;
+    });
+
+    it("step 2: the offered address accepts, becomes owner, and the offer is cleared", async function () {
+      const { registry, admin, stranger } = await loadFixture(deployFixture);
+      await registry.transferOwnership(stranger.address);
+      await expect(registry.connect(stranger).acceptOwnership())
         .to.emit(registry, "OwnershipTransferred")
         .withArgs(admin.address, stranger.address);
       expect(await registry.owner()).to.equal(stranger.address);
+      expect(await registry.pendingOwner()).to.equal(ethers.ZeroAddress);
     });
 
-    it("moves admin rights to the new owner and away from the old one", async function () {
+    it("after accepting, admin rights moved to the new owner and away from the old one", async function () {
       const { registry, admin, stranger, fastrack } = await loadFixture(deployFixture);
       await registry.transferOwnership(stranger.address);
+      await registry.connect(stranger).acceptOwnership();
       await expect(registry.verifyBrand(fastrack.address, "Fastrack"))
         .to.be.revertedWithCustomError(registry, "NotOwner")
         .withArgs(admin.address);
       await expect(registry.connect(stranger).verifyBrand(fastrack.address, "Fastrack")).to.not.be.reverted;
+    });
+
+    it("only the offered address can accept (not the owner, not a stranger, not anyone when nothing is offered)", async function () {
+      const { registry, admin, stranger, fastrack } = await loadFixture(deployFixture);
+      await expect(registry.connect(stranger).acceptOwnership())
+        .to.be.revertedWithCustomError(registry, "NotPendingOwner")
+        .withArgs(stranger.address); // nothing offered yet
+      await registry.transferOwnership(stranger.address);
+      await expect(registry.connect(admin).acceptOwnership())
+        .to.be.revertedWithCustomError(registry, "NotPendingOwner")
+        .withArgs(admin.address);
+      await expect(registry.connect(fastrack).acceptOwnership())
+        .to.be.revertedWithCustomError(registry, "NotPendingOwner")
+        .withArgs(fastrack.address);
+      expect(await registry.owner()).to.equal(admin.address);
+    });
+
+    it("an offer can be accepted only once", async function () {
+      const { registry, admin, stranger } = await loadFixture(deployFixture);
+      await registry.transferOwnership(stranger.address);
+      await registry.connect(stranger).acceptOwnership();
+      await registry.connect(stranger).transferOwnership(admin.address);
+      await registry.connect(admin).acceptOwnership(); // ownership goes back to admin
+      await expect(registry.connect(stranger).acceptOwnership())
+        .to.be.revertedWithCustomError(registry, "NotPendingOwner")
+        .withArgs(stranger.address);
+    });
+
+    it("typo safety: offering ownership to a wrong address changes nothing and the owner can replace the offer", async function () {
+      const { registry, admin, stranger, fastrack } = await loadFixture(deployFixture);
+      const wrongAddress = ethers.Wallet.createRandom().address; // nobody controls this wallet
+      await registry.transferOwnership(wrongAddress);
+      expect(await registry.owner()).to.equal(admin.address);
+      await expect(registry.verifyBrand(fastrack.address, "Fastrack")).to.not.be.reverted; // admin still works
+
+      // Offering to someone else replaces the wrong offer, and the wrong address can no longer accept.
+      await registry.transferOwnership(stranger.address);
+      expect(await registry.pendingOwner()).to.equal(stranger.address);
+      await registry.connect(stranger).acceptOwnership();
+      expect(await registry.owner()).to.equal(stranger.address);
     });
 
     it("rejects transferOwnership from a non-owner", async function () {

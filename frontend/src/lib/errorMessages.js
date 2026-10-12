@@ -9,6 +9,8 @@
 export const ERROR_MESSAGES = {
   // ----- Ownable -----
   NotOwner: (a, c) => `${c.name(a.caller)} is not the platform admin, so it cannot do this. Switch to the Admin account.`,
+  NotPendingOwner: (a, c) =>
+    `${c.name(a.caller)} has not been offered the admin role, so it cannot accept it. The current admin must offer it first.`,
   ZeroAddress: () => "An empty address (0x000…000) is not allowed here. Enter a real wallet address.",
 
   // ----- ProductRegistry: input checks -----

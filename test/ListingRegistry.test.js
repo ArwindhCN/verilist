@@ -180,9 +180,17 @@ describe("ListingRegistry", function () {
       expect(m.name).to.equal("");
     });
 
-    it("transferOwnership works here too (Ownable) and moves marketplace admin rights", async function () {
+    it("two-step ownership transfer works here too (Ownable) and moves marketplace admin rights only after accepting", async function () {
       const { listings, admin, stranger } = await loadFixture(worldFixture);
       await expect(listings.transferOwnership(stranger.address))
+        .to.emit(listings, "OwnershipTransferStarted")
+        .withArgs(admin.address, stranger.address);
+      // Offer only: nothing has moved yet.
+      await expect(listings.connect(stranger).registerMarketplace(admin.address, "Old admin"))
+        .to.be.revertedWithCustomError(listings, "NotOwner")
+        .withArgs(stranger.address);
+
+      await expect(listings.connect(stranger).acceptOwnership())
         .to.emit(listings, "OwnershipTransferred")
         .withArgs(admin.address, stranger.address);
       await expect(listings.registerMarketplace(admin.address, "Old admin")).to.be.revertedWithCustomError(
@@ -833,7 +841,8 @@ describe("ListingRegistry", function () {
         "ListingCreated"
       );
       await expect(listings.connect(flipkart).removeListing(1)).to.emit(listings, "ListingRemoved");
-      await expect(listings.transferOwnership(stranger.address)).to.emit(listings, "OwnershipTransferred");
+      await expect(listings.transferOwnership(stranger.address)).to.emit(listings, "OwnershipTransferStarted");
+      await expect(listings.connect(stranger).acceptOwnership()).to.emit(listings, "OwnershipTransferred");
 
       // ...and the same for the ProductRegistry's own functions.
       await expect(products.verifyBrand(stranger.address, "S")).to.emit(products, "BrandVerified");
@@ -858,7 +867,8 @@ describe("ListingRegistry", function () {
         products,
         "SellerRevoked"
       );
-      await expect(products.transferOwnership(stranger.address)).to.emit(products, "OwnershipTransferred");
+      await expect(products.transferOwnership(stranger.address)).to.emit(products, "OwnershipTransferStarted");
+      await expect(products.connect(stranger).acceptOwnership()).to.emit(products, "OwnershipTransferred");
     });
   });
 });

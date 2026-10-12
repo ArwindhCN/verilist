@@ -31,8 +31,10 @@ function describe(item, nameOf) {
   switch (item.name) {
     case "OwnershipTransferred":
       return a.previousOwner === "0x0000000000000000000000000000000000000000"
-        ? `A registry was deployed. Its admin is ${nameOf(a.newOwner)}.`
-        : `Admin rights moved from ${nameOf(a.previousOwner)} to ${nameOf(a.newOwner)}.`;
+        ? `The ${item.source} was deployed. Its admin is ${nameOf(a.newOwner)}.`
+        : `The ${item.source}'s admin role moved from ${nameOf(a.previousOwner)} to ${nameOf(a.newOwner)}.`;
+    case "OwnershipTransferStarted":
+      return `${nameOf(a.previousOwner)} offered the ${item.source}'s admin role to ${nameOf(a.newOwner)}. It takes effect when ${nameOf(a.newOwner)} accepts.`;
     case "BrandVerified":
       return `The admin verified ${a.name} as a brand.`;
     case "BrandRevoked":
@@ -102,6 +104,8 @@ export function ActivityFeed() {
         logIndex: log.index,
         txHash: log.transactionHash,
         name: parsed.name,
+        // Which registry emitted it, in plain words (both registries share the ownership events).
+        source: log.address.toLowerCase() === addresses[0].toLowerCase() ? "product registry" : "listing registry",
         args,
         product: null,
         listing: null,

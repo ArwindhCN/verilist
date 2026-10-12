@@ -1,8 +1,9 @@
 // Admin tab: verify or revoke brands, register or switch marketplaces on and off (rule R1).
 // The tables are public data and always visible. The forms and buttons need the admin account.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isAddress } from "ethers";
 import { useChain } from "../context/chainState.js";
+import { formatDelay, isSet, loadMultisigInfo } from "../lib/chain.js";
 import { formatTimestamp } from "../lib/format.js";
 import { useKnownAccounts } from "../lib/useKnownAccounts.js";
 import { AddressPicker } from "./AddressPicker.jsx";
@@ -12,6 +13,7 @@ import { ActiveBadge, Address, Empty, RoleNotice } from "./ui.jsx";
 export function AdminView() {
   const { account, roles, catalog, mode, connectWallet } = useChain();
   const isAdmin = roles.isBrandAdmin || roles.isMarketplaceAdmin;
+  const adminIsContract = Boolean(catalog?.productsOwnerIsContract || catalog?.listingsOwnerIsContract);
 
   return (
     <section aria-labelledby="admin-title">
@@ -27,7 +29,8 @@ export function AdminView() {
           )}
         </RoleNotice>
       )}
-      {account && !isAdmin && (
+      <AdminGovernance />
+      {account && !isAdmin && !adminIsContract && (
         <RoleNotice title="This account isn't the platform admin">
           Only the admin can verify brands and register marketplaces. You can read the current state below. To make
           changes, switch to the Admin account.
@@ -37,6 +40,56 @@ export function AdminView() {
       <BrandsSection canEdit={roles.isBrandAdmin} brands={catalog?.brands} />
       <MarketplacesSection canEdit={roles.isMarketplaceAdmin} marketplaces={catalog?.marketplaces} />
     </section>
+  );
+}
+
+/**
+ * Explains how the admin role is held right now: a shared multisig contract (with its signer count and waiting
+ * time), and any handover that has been offered but not accepted yet.
+ */
+function AdminGovernance() {
+  const { catalog, provider } = useChain();
+  const [info, setInfo] = useState(null);
+
+  const multisigAddress = catalog?.productsOwnerIsContract
+    ? catalog.productsOwner
+    : catalog?.listingsOwnerIsContract
+      ? catalog.listingsOwner
+      : null;
+
+  useEffect(() => {
+    if (!multisigAddress || !provider) {
+      setInfo(null);
+      return undefined;
+    }
+    let cancelled = false;
+    loadMultisigInfo(provider, multisigAddress).then((result) => {
+      if (!cancelled) setInfo(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [multisigAddress, provider]);
+
+  if (!catalog) return null;
+  const pending = [...new Set([catalog.productsPendingOwner, catalog.listingsPendingOwner].filter(isSet))];
+
+  return (
+    <>
+      {multisigAddress && (
+        <RoleNotice title="The admin is a shared multisig wallet">
+          Brand and marketplace changes are proposed and approved by its signers
+          {info ? ` (${info.threshold} of ${info.owners.length} must approve, then ${formatDelay(info.delay)} of waiting)` : ""}
+          , so they cannot be made from this page. The multisig is <Address value={multisigAddress} />.
+        </RoleNotice>
+      )}
+      {pending.map((address) => (
+        <RoleNotice key={address} title="An admin handover is waiting to be accepted">
+          The admin role has been offered to <Address value={address} />. Nothing changes until that address accepts,
+          and the current admin keeps full control until then.
+        </RoleNotice>
+      ))}
+    </>
   );
 }
 

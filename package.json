@@ -20,7 +20,9 @@
     "frontend:build": "npm --prefix frontend run build",
     "verify-all": "node scripts/verify-all.js",
     "ui-smoke": "node scripts/ui-smoke.js",
-    "ui-demo": "node scripts/ui-demo.js"
+    "ui-demo": "node scripts/ui-demo.js",
+    "multisig:local": "hardhat run scripts/deploy-multisig.js --network localhost",
+    "multisig:sepolia": "hardhat run scripts/deploy-multisig.js --network sepolia"
   },
   "license": "MIT",
   "devDependencies": {

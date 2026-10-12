@@ -1,6 +1,7 @@
 // The whole VeriList story in one test, using the real names from the demo.
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { time } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
 
 const Status = { GENUINE: 0n, SELLER_NOT_AUTHORIZED: 7n };
 
@@ -76,5 +77,71 @@ describe("Integration: the Fastrack watch story", function () {
     await products.connect(fastrack).authorizeSeller(productId, retailNet.address);
     expect(await listings.verifyListing(1)).to.equal(Status.GENUINE);
     expect(await listings.verifyListing(2)).to.equal(Status.GENUINE);
+  });
+
+  it("admin safety: hand the admin role to a 2-of-3 multisig with a timelock, then cancel a bad proposal", async function () {
+    const [admin, s1, s2, s3, fastrack, amazon] = await ethers.getSigners();
+    const HOUR = 3600;
+
+    const products = await (await ethers.getContractFactory("ProductRegistry")).deploy();
+    const listings = await (await ethers.getContractFactory("ListingRegistry")).deploy(await products.getAddress());
+    const multisig = await (await ethers.getContractFactory("AdminMultisig")).deploy(
+      [s1.address, s2.address, s3.address],
+      2,
+      HOUR
+    );
+    const multisigAddress = await multisig.getAddress();
+    const call = (registry, fn, args = []) => registry.interface.encodeFunctionData(fn, args);
+
+    // Day one: a single admin wallet runs everything.
+    await products.verifyBrand(fastrack.address, "Fastrack");
+
+    // 1. Step one of the handover: the admin only OFFERS ownership. Nothing changes yet.
+    await products.transferOwnership(multisigAddress);
+    await listings.transferOwnership(multisigAddress);
+    expect(await products.owner()).to.equal(admin.address);
+    expect(await products.pendingOwner()).to.equal(multisigAddress);
+
+    // 2. Step two: the multisig itself accepts, through its own approval process and timelock.
+    const productsAddress = await products.getAddress();
+    const listingsAddress = await listings.getAddress();
+    await multisig.connect(s1).propose(productsAddress, call(products, "acceptOwnership")); // proposal 1
+    await multisig.connect(s1).propose(listingsAddress, call(listings, "acceptOwnership")); // proposal 2
+    await multisig.connect(s2).approve(1);
+    await multisig.connect(s2).approve(2);
+    await expect(multisig.execute(1)).to.be.revertedWithCustomError(multisig, "TimelockNotElapsed");
+    await time.increase(HOUR);
+    await multisig.execute(1);
+    await multisig.execute(2);
+    expect(await products.owner()).to.equal(multisigAddress);
+    expect(await listings.owner()).to.equal(multisigAddress);
+
+    // 3. The old admin wallet has no power left.
+    await expect(products.verifyBrand(fastrack.address, "Again"))
+      .to.be.revertedWithCustomError(products, "NotOwner")
+      .withArgs(admin.address);
+    await expect(listings.registerMarketplace(amazon.address, "Amazon"))
+      .to.be.revertedWithCustomError(listings, "NotOwner")
+      .withArgs(admin.address);
+
+    // 4. One signer alone (a stolen key, or a rogue person) cannot do anything.
+    await multisig.connect(s1).propose(productsAddress, call(products, "revokeBrand", [fastrack.address])); // proposal 3
+    await time.increase(HOUR * 5);
+    await expect(multisig.execute(3)).to.be.revertedWithCustomError(multisig, "NotEnoughApprovals");
+
+    // 5. The normal path works: two signers agree, the timelock passes, anyone executes.
+    await multisig.connect(s1).propose(listingsAddress, call(listings, "registerMarketplace", [amazon.address, "Amazon"])); // 4
+    await multisig.connect(s2).approve(4);
+    await time.increase(HOUR);
+    await multisig.connect(fastrack).execute(4);
+    expect((await listings.getMarketplace(amazon.address)).active).to.equal(true);
+
+    // 6. A bad proposal is caught during the waiting time and cancelled by withdrawing an approval.
+    await multisig.connect(s2).approve(3); // s1 + s2 now back "revoke Fastrack"; the timelock starts
+    await expect(multisig.execute(3)).to.be.revertedWithCustomError(multisig, "TimelockNotElapsed");
+    await multisig.connect(s2).revokeApproval(3); // s2 notices the mistake in time
+    await time.increase(HOUR * 2);
+    await expect(multisig.execute(3)).to.be.revertedWithCustomError(multisig, "NotEnoughApprovals");
+    expect((await products.getBrand(fastrack.address)).verified).to.equal(true); // Fastrack is still verified
   });
 });

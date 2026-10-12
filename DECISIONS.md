@@ -2,7 +2,11 @@
 
 Every place where this project goes beyond, or differs from, `PROJECT_SPEC.md`, and why.
 Nothing in the spec's rules R1 to R12 was weakened. No test was skipped, deleted or loosened to make it pass.
-Where a test was wrong, it was a bug in the test itself (two cases, listed in section 9).
+Where a test was wrong, it was a bug in the test itself (cases listed in section 9).
+
+**After the original spec was delivered, one extension was added at your request: "admin safety"** (two-step
+ownership, a multisig admin, a timelock). It changes `Ownable` and adds `AdminMultisig`. Everything about it is in
+section 2b; the rest of this file describes the project as a whole.
 
 ---
 
@@ -17,6 +21,7 @@ Where a test was wrong, it was a bug in the test itself (two cases, listed in se
 | dotenv | Loaded with `quiet: true`. | dotenv 18 prints a banner on every command otherwise. |
 | `npm audit` | Root reports 52 findings, **all in dev dependencies** pulled in by Hardhat's toolbox (19 low, 9 moderate, 24 high). `npm audit --omit=dev` reports 0. The frontend reports 0. | They are inside build and test tooling (not shipped, not run on a user's machine). Fixing them needs breaking upgrades of Hardhat itself, which the spec forbids (Hardhat 2.x). |
 | Extra npm scripts | `ui-smoke` (`scripts/ui-smoke.js`) and `ui-demo` (`scripts/ui-demo.js`). | The spec asks for a Playwright smoke test if possible. Both need a running node and a seeded chain, so they cannot be part of `verify-all`. `ui-demo` replays the README's 5-minute demo script, so the written script and the real site cannot drift apart. It changes chain state, which the README and the script's header say. |
+| Extra npm scripts for admin safety | `multisig:local` and `multisig:sepolia` (`scripts/deploy-multisig.js`). | Not in the spec's script table. They hand the admin role to a multisig (section 2b). |
 | Extra dev dependency | `playwright-core` (root). | For the same smoke test. It does **not** download a browser (see section 8). |
 | `.claude/launch.json` | Created only so the preview tool could start `npm run frontend:dev`. It was removed at the end. | Tooling, not part of the project. |
 | Generated JSON | `frontend/src/contracts/deployment.json` and `demo-accounts.json` are **not** git-ignored. | The spec's `.gitignore` list does not include them. The app and `frontend:build` work without them (see `src/lib/config.js`). |
@@ -65,6 +70,63 @@ Where a test was wrong, it was a bug in the test itself (two cases, listed in se
 
 ---
 
+## 2b. Admin safety extension (two-step ownership, multisig, timelock)
+
+**Why:** the spec's design has one admin wallet, which is a single point of failure. You asked to reduce that.
+**What changed, and where it differs from the spec:**
+
+1. **`Ownable.transferOwnership` is now step 1 of 2.** The spec describes a one-step transfer ("onlyOwner, rejects the
+   zero address, emits the event"). It now only *offers* ownership (`pendingOwner`, event `OwnershipTransferStarted`).
+   The new owner must call `acceptOwnership()` (error `NotPendingOwner`), which emits the original
+   `OwnershipTransferred`. **Why:** a one-step transfer to a mistyped address loses the admin role forever.
+   There is no separate "cancel" function: offering again replaces the earlier offer (a mistyped offer can never be
+   accepted, so it is harmless until replaced).
+2. **Existing tests were rewritten, not loosened.** The tests that asserted the one-step behaviour now assert the
+   two-step behaviour: the two old one-step tests were replaced by seven two-step tests (typo safety, only the offered
+   address can accept, an offer works once, replacing an offer, the old owner keeps power until acceptance, …). The R12 event test now checks
+   both `OwnershipTransferStarted` and `OwnershipTransferred`.
+3. **`contracts/AdminMultisig.sol` (new, hand-written).** It follows the project's rule of writing the core contracts
+   by hand instead of importing OpenZeppelin, so every line can be explained. Choices:
+   - Signers, threshold and delay are **fixed at deployment** (`immutable` or set once). There is no "change signers"
+     code to attack. To change signers: deploy a new multisig and hand over with the two-step transfer.
+   - `MAX_OWNERS = 10` (keeps the constructor loop bounded) and `MAX_DELAY = 30 days`. A delay of 0 is allowed (tests, demos).
+   - **Cancelling = withdrawing approvals.** If approvals drop below the threshold the action is blocked and the
+     timelock **resets**. There is no separate cancel function.
+   - **Anyone may execute** once the action is approved and the delay has passed (it is already authorized).
+   - **No expiry.** An approved proposal stays executable forever unless signers withdraw. This is a known weakness
+     (a forgotten, approved proposal could run much later). Mitigation: signers can withdraw at any time.
+   - The target must be a **contract** (`TargetNotAContract`), because a call to a normal wallet would "succeed" silently.
+   - **It passes on the called contract's own error** (low-level `call` plus a small assembly `revert`), so the
+     reason, for example `NotOwner`, stays visible; an empty revert becomes `ExecutionFailed`. The proposal is marked
+     executed **before** the call, and a failed call undoes everything (it stays open to retry).
+   - **No ETH:** no `payable`, no `receive`, no `fallback` (same rule as the registries).
+   - **Timestamp exception.** The spec says timestamps are "recorded only, never used in logic". A timelock cannot
+     work without comparing time, so `block.timestamp` is used in a decision in this one contract only. The registries
+     are unchanged: they still only record timestamps.
+   - **Not audited, and not Safe.** For real money use a widely audited multisig such as Safe. `Ownable` accepts any
+     address as owner, so a Safe can be used instead without changing the registries.
+4. **`scripts/deploy-multisig.js`.** Local: deploys a 2-of-3 multisig (Hardhat accounts #8 to #10, 10 second delay) and
+   completes the handover. A real network: deploys it and only **offers** ownership; the real signers accept with their
+   own wallets (the script prints the calls). The old admin keeps control until then, so a half-finished handover loses nothing.
+5. **Frontend (small).** The Admin tab explains a multisig admin (reading its threshold and delay from the contract)
+   and any pending handover, instead of the generic "this isn't the admin" message. The activity feed words the
+   ownership events (and says which registry). The new `NotPendingOwner` error has a friendly message (the
+   `ErrorMessages` test insisted on it before it would pass). **The website cannot send multisig proposals**
+   (signers use their own tools or a script). That would be a sizeable extra interface and was left out.
+6. **Verification.** 176 tests, still 100% coverage on all four contracts. **Mutation check:** I deliberately broke the
+   contracts five ways (removed the timelock check, removed the "executed" flag, removed the timelock reset, threshold off by one,
+   let anyone accept ownership). Each was caught by the tests. `npm run e2e` has 4 more steps (21 to 24), using real
+   time travel on the in-process chain. After the changes, `ui-smoke` (17/17) and `ui-demo` still pass on the new contracts,
+   and `multisig:local` was run against a live node and the result checked in the browser.
+7. **Slither (rerun):** 0 High, the same 5 Medium as before (all in unchanged `ListingRegistry`), 4 Low `timestamp`
+   (3 as before, plus the timelock itself, intended), and 2 informational notes (`low-level-calls` for the call, `assembly` for the error
+   pass-through), also intended. No reentrancy findings.
+
+**Not done / limits of this extension:** never run on Sepolia; no website screen for proposing or approving multisig
+actions; no proposal expiry; the multisig has not been audited.
+
+---
+
 ## 3. Static analysis (Slither 0.11.6)
 
 Installed with `pip install slither-analyzer` into a throw-away virtualenv (outside the project), then run with
@@ -76,7 +138,8 @@ Installed with `pip install slither-analyzer` into a throw-away virtualenv (outs
 |---|---|---|
 | `uninitialized-state` on `ProductRegistry._versions` | High | **False positive.** The mapping was written through a local storage pointer (`Version[] storage v = _versions[id]; v.push(...)`), which the detector does not follow. I changed `_appendVersion` to call `_versions[productId].push(...)` directly. The finding disappeared, which confirms the diagnosis. Behaviour is unchanged and all tests still pass. |
 
-**Final run: 8 results (0 High, 5 Medium, 3 Low). No code change; justified here.**
+**Final run (before the admin-safety extension): 8 results (0 High, 5 Medium, 3 Low). No code change; justified here.**
+The rerun after that extension is in section 2b, point 7.
 
 | Finding | Count | Why it is safe |
 |---|---|---|
@@ -95,8 +158,9 @@ Installed with `pip install slither-analyzer` into a throw-away virtualenv (outs
   *behaviour* (a marketplace calling `updateProductDetails` reverts `NotProductBrand`) and also scans
   `ListingRegistry`'s ABI for function names that look like detail-editing. The name scan is only a heuristic.
   The behavioural check is the real proof.
-- **Coverage:** 100% statements, branches, functions and lines on all three contracts (target was 95/95/100).
-- **`scripts/e2e-check.js`** has 20 steps. Its failure path was verified with a deliberately broken copy
+- **Coverage:** 100% statements, branches, functions and lines on all four contracts (target was 95/95/100).
+- **Test count:** 176 Hardhat tests.
+- **`scripts/e2e-check.js`** has 24 steps (20 original, 4 for the admin handover). Its failure path was verified with a deliberately broken copy
   (exit code 1), not assumed.
 
 ---
@@ -168,7 +232,7 @@ Installed with `pip install slither-analyzer` into a throw-away virtualenv (outs
 ## 7. Documentation
 
 - `README.md` lists the rule-to-test table with exact test titles.
-- `VIVA_GUIDE.md` is written in short, plain sentences for studying, with the 20 questions at the end.
+- `VIVA_GUIDE.md` is written in short, plain sentences for studying, with the 23 questions at the end.
 
 ---
 
@@ -208,3 +272,7 @@ These are recorded because they were real problems, not spec deviations.
 4. **A false verification in my own process:** my first check that `e2e-check.js` exits with code 1 on failure
    used a copy outside the project, which exited 1 only because `hardhat` could not be found. I noticed the
    output was empty, redid it properly, and saw the real `FAIL` and exit code 1.
+5. **Admin-safety round, caught by the existing safety nets:** the `ErrorMessages` test failed because the new
+   `NotPendingOwner` error had no friendly message yet (so it was added); and two of my new `e2e-check.js` steps failed
+   because the scenario reused an address (Titan) that earlier steps had already verified as a brand. That was a mistake
+   in my script, not in the contracts, and the scenario now uses a genuinely new address.

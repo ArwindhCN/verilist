@@ -210,7 +210,13 @@ export function ChainProvider({ children }) {
       for (const [name, info] of Object.entries(demoAccounts)) map.set(info.address.toLowerCase(), name);
     }
     if (catalog) {
-      if (!map.has(catalog.productsOwner.toLowerCase())) map.set(catalog.productsOwner.toLowerCase(), "Admin");
+      const ownerName = (isContract) => (isContract ? "Admin multisig" : "Admin");
+      for (const [owner, isContract] of [
+        [catalog.productsOwner, catalog.productsOwnerIsContract],
+        [catalog.listingsOwner, catalog.listingsOwnerIsContract],
+      ]) {
+        if (!map.has(owner.toLowerCase()) || isContract) map.set(owner.toLowerCase(), ownerName(isContract));
+      }
       for (const brand of catalog.brands) if (brand.name) map.set(brand.address.toLowerCase(), brand.name);
       for (const market of catalog.marketplaces) if (market.name) map.set(market.address.toLowerCase(), market.name);
     }

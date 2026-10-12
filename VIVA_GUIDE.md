@@ -1,7 +1,7 @@
 # VeriList: Viva Study Guide
 
 This guide is written in simple English so you can learn it and explain it in your own words.
-Read it once from top to bottom. Then use the "20 likely viva questions" at the end to test yourself.
+Read it once from top to bottom. Then use the "23 likely viva questions" at the end to test yourself.
 
 ---
 
@@ -42,7 +42,7 @@ attributable to the brand's wallet. See "Honest limitations" below.
 
 | Role | Who | What they can do |
 |---|---|---|
-| **Admin** | The platform consortium. The wallet that deployed the contracts. | Verify and revoke brands. Register and switch on/off marketplaces. |
+| **Admin** | The platform consortium. At first, the wallet that deployed the contracts. It can later be handed to a **shared multisig wallet** (section 4.4). | Verify and revoke brands. Register and switch on/off marketplaces. |
 | **Brand** | A verified wallet, for example Fastrack | Register its products, add new versions of the details, switch products on/off, authorize and revoke sellers. |
 | **Marketplace** | A registered wallet, for example Flipkart | Create listings (only when the blockchain agrees) and remove its own listings. |
 | **Seller** | A wallet, for example RetailNet | Can be authorized by a brand. Can remove its own listings. |
@@ -50,9 +50,9 @@ attributable to the brand's wallet. See "Honest limitations" below.
 
 ---
 
-## 4. The three contracts
+## 4. The four contracts
 
-There are three Solidity files. All use `pragma solidity 0.8.24;`.
+There are four Solidity files. All use `pragma solidity 0.8.24;`.
 
 ### 4.1 `Ownable.sol` (a small base contract)
 
@@ -62,8 +62,12 @@ every line can be explained. `ProductRegistry` and `ListingRegistry` both inheri
 - `owner` is set to whoever deploys the contract.
 - `onlyOwner` is a *modifier*: a check that runs before a function. If the caller is not the owner, it stops
   with `NotOwner(caller)`.
-- `transferOwnership(newOwner)`: only the owner can call it. It rejects the zero address (that would lock the
-  admin functions forever) and emits `OwnershipTransferred`.
+- **Ownership changes in two steps.** `transferOwnership(newOwner)` only *offers* the admin role (it saves
+  `pendingOwner`). The new owner must call `acceptOwnership()` before anything changes. Why: if you type a wrong
+  address in a one-step transfer, the admin role is lost forever. With two steps, a wrong address can never accept,
+  so nothing is lost and the real owner keeps full control.
+- `transferOwnership` rejects the zero address and emits `OwnershipTransferStarted`. `acceptOwnership` emits
+  `OwnershipTransferred`.
 
 ### 4.2 `ProductRegistry.sol` (brands, products, versions, sellers)
 
@@ -91,6 +95,29 @@ Main data:
 - `externalRef` is the marketplace's own ID for the listing, like `FLIP-883021`.
 - `nextListingId` starts at **1**, so ID 0 always means "no listing".
 
+### 4.4 `AdminMultisig.sol` (a shared admin with a timelock)
+
+This is how we remove the "one admin wallet" weakness. It is a contract that **can be the owner** of the two
+registries. Instead of one person, there are *N* signers, and an action needs *M of them* to approve.
+
+- **Signers, threshold (M) and delay are fixed at deployment.** Nobody can add a signer later (so there is no
+  "add signer" function to attack). To change signers you deploy a new multisig and hand over to it.
+- **Life of an action:** a signer **proposes** "call this function on this contract" -> other signers **approve** ->
+  when approvals reach M, the **timelock** starts -> after the delay, **anyone can execute** it.
+- **The timelock** is a waiting time, for example 24 hours. Everyone can see the approved action coming. If a key
+  was stolen or a mistake was made, signers **withdraw their approval** during the wait. That blocks the action and
+  resets the timer.
+- **It passes on errors.** If the called registry rejects the action (for example `NotOwner`), you see that exact error.
+- It cannot hold ETH, and it marks an action "executed" **before** it calls the other contract, so it cannot run twice.
+
+**Handover story (this is what `npm run multisig:local` does):**
+1. The current admin **offers** ownership of both registries to the multisig. Nothing changes yet.
+2. The multisig **accepts** through its own process (propose, approve, wait, execute).
+3. Now the old admin wallet has **no power**, and one signer alone cannot do anything.
+
+Honest note: this is a small teaching implementation. For real money you would use a widely audited multisig such as
+**Safe**. Our registries accept *any* address as owner, so they work with Safe too.
+
 ---
 
 ## 5. Every function: who, what, checks, emits
@@ -103,7 +130,8 @@ instead of text messages, because they are cheaper and clearer.
 | Function | Who | What it does | Checks | Emits |
 |---|---|---|---|---|
 | `constructor()` | the deployer | Makes the deployer the owner. | none | `OwnershipTransferred(0, deployer)` |
-| `transferOwnership(newOwner)` | owner | Gives admin rights to another wallet. | caller is owner; `newOwner` is not the zero address | `OwnershipTransferred` |
+| `transferOwnership(newOwner)` | owner | **Step 1:** offers admin rights to another address. Offering again replaces the offer. | caller is owner; `newOwner` is not the zero address | `OwnershipTransferStarted` |
+| `acceptOwnership()` | the offered address | **Step 2:** accepts and becomes the owner. Clears the offer. | caller is `pendingOwner` (`NotPendingOwner`) | `OwnershipTransferred` |
 
 ### 5.2 ProductRegistry: admin functions
 
@@ -188,6 +216,17 @@ reverts. This keeps a long list from ever blocking a page.
 The status values are: `GENUINE`, `LISTING_NOT_FOUND`, `LISTING_REMOVED`, `MARKETPLACE_INACTIVE`,
 `PRODUCT_NOT_FOUND`, `BRAND_NOT_VERIFIED`, `PRODUCT_INACTIVE`, `SELLER_NOT_AUTHORIZED`, `DUPLICATE_LISTING`.
 (`DUPLICATE_LISTING` only ever comes from `checkListingEligibility`.)
+
+### 5.8 AdminMultisig
+
+| Function | Who | What it does | Checks (errors) | Emits |
+|---|---|---|---|---|
+| `constructor(owners, threshold, delay)` | the deployer | Sets the signers, how many must approve, and the timelock. | 1 to 10 signers (`NoOwners`, `TooManyOwners`); no zero or repeated signer (`ZeroAddress`, `DuplicateOwner`); threshold from 1 to the number of signers (`InvalidThreshold`); delay at most 30 days (`DelayTooLong`) | none |
+| `propose(target, data)` | a signer | Proposes "call `target` with `data`". The proposer's approval counts at once. Returns the proposal ID. | caller is a signer (`NotAnOwner`); target is a contract (`TargetNotAContract`) | `ProposalCreated`, `ProposalApproved` (and `ProposalReady` if the threshold is 1) |
+| `approve(id)` | a signer | Adds an approval. The approval that reaches the threshold starts the timelock. | proposal exists and is open (`ProposalNotFound`, `ProposalAlreadyExecuted`); not already approved (`AlreadyApproved`) | `ProposalApproved`, then `ProposalReady` |
+| `revokeApproval(id)` | a signer | Withdraws the caller's approval. Below the threshold, the action is blocked and the timelock resets. | caller had approved (`NotApproved`) | `ApprovalRevoked` |
+| `execute(id)` | anyone | Runs the action once enough signers approved and the delay has passed. | enough approvals (`NotEnoughApprovals`); delay over (`TimelockNotElapsed`); the called contract does not revert (its own error is passed on, or `ExecutionFailed`) | `ProposalExecuted` |
+| `getOwners()`, `getProposal(id)`, `isOwner`, `hasApproved`, `threshold`, `delay`, `proposalCount` | anyone | Read-only information. | `getProposal` reverts `ProposalNotFound` for an unknown ID | none |
 
 ---
 
@@ -303,12 +342,19 @@ We store the JSON text directly (max 4096 bytes) because:
 - **No loops in anything that writes.** Every write is a fixed number of steps, so nobody can make a
   transaction too expensive to run. List-returning views use `offset`/`limit`.
 - **No `tx.origin`.** We only use `msg.sender`.
-- **Timestamps are only recorded**, never used in decisions, so miners cannot influence the logic.
+- **Timestamps are only recorded** in the registries, never used in decisions, so miners cannot influence the logic.
+  (The one exception is the `AdminMultisig` timelock, which has to compare time. It waits hours, so a few seconds of
+  miner influence is harmless.)
+- **Two-step ownership**, so a typo cannot lock the admin role.
+- **Shared admin with a timelock** (`AdminMultisig`): no single key can change who is trusted, and wrong actions
+  can be cancelled during the wait. The multisig marks an action executed **before** calling out, so it cannot run twice.
 - **Only external calls are view calls** from `ListingRegistry` to `ProductRegistry`, so there is no reentrancy risk.
 - **`immutable` registry address**, so it cannot be swapped after deployment.
 - **Exact compiler version** (`0.8.24`), so the code always compiles the same way. Zero compiler warnings.
 - **Static analysis with Slither.** One High finding was a false positive and was removed by a tiny code
   change. The rest are explained in `DECISIONS.md`.
+- **Tests that test the tests.** For the multisig, we deliberately broke the contract five ways (for example,
+  removed the timelock check) and checked that the tests failed each time.
 
 ---
 
@@ -317,7 +363,10 @@ We store the JSON text directly (max 4096 bytes) because:
 1. **Marketplaces must adopt it.** If Flipkart ignores the registry, nothing forces it to check. The system
    only helps where marketplaces agree to use it.
 2. **We still trust the brand.** The chain proves *the brand said it*, not that the claims are true.
-3. **The admin is centralized.** One wallet decides who is a brand or marketplace. Real use needs a multisig or a DAO.
+3. **The admin is centralized by default.** One wallet decides who is a brand or marketplace. This is reduced by the
+   optional multisig with a timelock (section 4.4), but even then a *group* decides who is trusted, and someone
+   still has to check that a wallet really belongs to a real brand. Real use needs a governance process, or a DAO.
+   Also, our multisig is a small teaching version, not an audited one, and approved actions never expire.
 4. **On-chain data is public.** Product details, authorized sellers and listings are visible to everyone.
 5. **Physical counterfeits are out of scope.** A real fake sold in a real box with a genuine listing's name is not detected.
 6. **Cost.** Every update costs gas on a public network. A local chain hides this.
@@ -328,7 +377,10 @@ We store the JSON text directly (max 4096 bytes) because:
 ## 14. Future work
 
 - **IPFS storage** for details, with only the hash on chain.
-- **Multisig / DAO admin**, so no single wallet is the admin.
+- **Consortium or DAO voting** for who is trusted (the multisig and timelock are already built; this adds votes by
+  marketplaces, brand groups and a regulator), and an audited multisig such as **Safe** for production.
+- **A screen for multisig signers** to propose and approve actions (today they use scripts or other tools).
+- **Proposal expiry** for the multisig, so an old approved action cannot run months later.
 - **Unit-level QR claim:** a QR code on each physical unit, linked to the registry.
 - **Escrow** and payments, so the money is released only for a genuine listing.
 - **EIP-712 signed seller authorizations**, so a brand can sign an authorization off-chain and the seller
@@ -349,7 +401,7 @@ We store the JSON text directly (max 4096 bytes) because:
 
 ---
 
-## 16. Twenty likely viva questions (with short answers)
+## 16. Twenty-three likely viva questions (with short answers)
 
 **1. What problem does VeriList solve?**
 Fake and duplicate listings on marketplaces. The brand's blockchain record decides which listings are genuine.
@@ -423,3 +475,17 @@ brand cannot register, update, switch, or change sellers until the admin verifie
 Mocha/Chai tests with Hardhat for every rule R1 to R12 (the README maps each rule to named tests), an
 integration test of the whole story, 100% statement/branch/function coverage, an end-to-end script, a Slither
 scan, and a headless-browser smoke test of the website.
+
+**21. The admin is one wallet. How did you reduce that risk?**
+Two ways. Ownership now changes in two steps (offer, then accept), so a wrong address cannot lock us out. And the
+admin can be a shared multisig contract, where M of N signers must approve, with a timelock. No single key can
+verify or revoke anyone alone.
+
+**22. What is a timelock and why does it help?**
+It is a waiting time between "enough signers approved" and "the action can run". During it, everyone can see
+what is coming, and signers can withdraw their approval. That stops a stolen key or a mistake from taking effect at once.
+
+**23. Why is it two steps to change the owner? Is one step not simpler?**
+One step is simpler, but a typo in the new address loses the admin role forever. In two steps, the new owner must prove it
+controls its wallet by accepting. A wrong address can never accept, so the real owner keeps control and can just
+offer again.
