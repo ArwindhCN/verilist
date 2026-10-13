@@ -23,7 +23,6 @@ section 2b; the rest of this file describes the project as a whole.
 | Extra npm scripts | `ui-smoke` (`scripts/ui-smoke.js`) and `ui-demo` (`scripts/ui-demo.js`). | The spec asks for a Playwright smoke test if possible. Both need a running node and a seeded chain, so they cannot be part of `verify-all`. `ui-demo` replays the README's 5-minute demo script, so the written script and the real site cannot drift apart. It changes chain state, which the README and the script's header say. |
 | Extra npm scripts for admin safety | `multisig:local` and `multisig:sepolia` (`scripts/deploy-multisig.js`). | Not in the spec's script table. They hand the admin role to a multisig (section 2b). |
 | Extra dev dependency | `playwright-core` (root). | For the same smoke test. It does **not** download a browser (see section 8). |
-| `.claude/launch.json` | Created only so the preview tool could start `npm run frontend:dev`. It was removed at the end. | Tooling, not part of the project. |
 | Generated JSON | `frontend/src/contracts/deployment.json` and `demo-accounts.json` are **not** git-ignored. | The spec's `.gitignore` list does not include them. The app and `frontend:build` work without them (see `src/lib/config.js`). |
 
 ---
