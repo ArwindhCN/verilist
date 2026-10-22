@@ -165,6 +165,27 @@ change any contract.
 
 ---
 
+## 2d. Address nicknames (friendly names for sellers)
+
+**Why:** the contracts store names only for brands and marketplaces, so a seller such as RetailNet appeared on the website as
+a short address. A demo is much clearer with names.
+
+1. An optional **local file**, `frontend/src/contracts/address-names.json` (`{ "RetailNet": "0x..." }`), gives any address a
+   nickname. It only changes what the website displays; **nothing is written to the blockchain** and no contract changed.
+2. The nicknames are used in the Verify page, the Activity panel, error messages, and the Marketplace **Seller** dropdown (in
+   MetaMask mode, so a seller can be picked by name instead of pasted). On-chain names (brands, marketplaces, the admin) still take priority.
+3. The file is read leniently: a wrong capital letter is forgiven, and a broken line is skipped, so a typo can never break the site.
+   It is not committed (it is in the untracked `frontend/src/contracts` folder, like the other generated files).
+4. **Tests:** 6 new tests (`test/AddressNames.test.js`). A mutation check found that my first test version did **not** cover the
+   "mixed-case address with a wrong capital letter" case (ethers already accepts all-upper and all-lower addresses), so a deliberate
+   bug survived. I added a test for that case, and the bug is now caught.
+5. **Built in an isolated copy first** (with no `.env`), so the website running a live Sepolia demo was not disturbed. In the copy, a
+   mock wallet and a pretend-Sepolia chain showed the names on the Verify page, the feed and the dropdown. Then the same files were applied
+   to the real project, and the real site was checked read-only against the real Sepolia contracts: the feed showed
+   "Fastrack authorized RetailNet to sell Fastrack Reflex Pro."
+
+---
+
 ## 3. Static analysis (Slither 0.11.6)
 
 Installed with `pip install slither-analyzer` into a throw-away virtualenv (outside the project), then run with
@@ -197,7 +218,7 @@ The rerun after that extension is in section 2b, point 7.
   `ListingRegistry`'s ABI for function names that look like detail-editing. The name scan is only a heuristic.
   The behavioural check is the real proof.
 - **Coverage:** 100% statements, branches, functions and lines on all four contracts (target was 95/95/100).
-- **Test count:** 188 Hardhat tests (176 for the contracts and the website's error messages, plus 12 for the Etherscan link and verification helpers).
+- **Test count:** 194 Hardhat tests (176 for the contracts and the website's error messages, 12 for the Etherscan link and verification helpers, and 6 for the address nicknames).
 - **`scripts/e2e-check.js`** has 24 steps (20 original, 4 for the admin handover). Its failure path was verified with a deliberately broken copy
   (exit code 1), not assumed.
 

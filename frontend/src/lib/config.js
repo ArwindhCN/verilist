@@ -10,6 +10,12 @@ export const deployment = files["../contracts/deployment.json"] ?? null;
 /** Output of `npm run seed:local`: role name -> { address, index, role }, or null. */
 export const demoAccounts = files["../contracts/demo-accounts.json"] ?? null;
 
+/**
+ * Optional nicknames for addresses (for example sellers): { "RetailNet": "0x1234..." }.
+ * Local file, never needed. See lib/addressNames.js.
+ */
+export const addressNames = files["../contracts/address-names.json"] ?? null;
+
 /** The local Hardhat node started by `npm run node`. */
 export const LOCAL_RPC_URL = "http://127.0.0.1:8545";
 

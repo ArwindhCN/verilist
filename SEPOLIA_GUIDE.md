@@ -140,6 +140,22 @@ Open <http://localhost:5173>. Because the deployment is on Sepolia, the site ope
 1. Click **Connect wallet** and approve in MetaMask. If MetaMask is on another network, click **Switch network in wallet**.
 2. Switching the account in MetaMask changes who you are on the site (shown next to "Wallet").
 
+### Optional: give sellers friendly names
+The blockchain stores names only for brands and marketplaces. A seller such as RetailNet is just an address, so the site shows
+`0x1234…abcd`. To show **RetailNet** instead, create the file `frontend/src/contracts/address-names.json` (it is local, never
+uploaded):
+
+```json
+{
+  "RetailNet": "0xPasteTheRetailNetAddressHere",
+  "FakeDeals": "0xPasteTheFakeDealsAddressHere"
+}
+```
+
+Save it and the website reloads by itself. The names appear on the Verify page, in the Activity panel, and in the **Seller**
+dropdown of the Marketplace tab, so you can pick RetailNet or FakeDeals by name instead of pasting an address. Wrong or broken
+lines are ignored. This only changes what *your* website displays; nothing is written to the blockchain.
+
 ### The story with real accounts
 Every action opens a MetaMask pop-up. Click **Confirm**. On Sepolia a transaction takes about 12 seconds to confirm (slower than your local chain).
 

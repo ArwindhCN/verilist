@@ -2,7 +2,8 @@
 // signer, the contracts, a catalog of brands/marketplaces/products, and helpers for names and errors.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserProvider, Contract, JsonRpcProvider, JsonRpcSigner, Network, getAddress } from "ethers";
-import { deployment, demoAccounts, LOCAL_CHAIN_ID, LOCAL_RPC_URL } from "../lib/config.js";
+import { addressNames, deployment, demoAccounts, LOCAL_CHAIN_ID, LOCAL_RPC_URL } from "../lib/config.js";
+import { normalizeAddressNames } from "../lib/addressNames.js";
 import { fetchCatalog } from "../lib/chain.js";
 import { decodeError } from "../lib/errors.js";
 import { ChainContext } from "./chainState.js";
@@ -203,12 +204,14 @@ export function ChainProvider({ children }) {
     };
   }, [read, refreshKey]);
 
-  // ----- names: demo role names first, then the names registered on chain -----
+  // ----- names: demo role names first, then your own nicknames, then the names registered on chain -----
   const nameMap = useMemo(() => {
     const map = new Map();
     if (deployment?.chainId === LOCAL_CHAIN_ID && demoAccounts) {
       for (const [name, info] of Object.entries(demoAccounts)) map.set(info.address.toLowerCase(), name);
     }
+    // Your own nicknames (address-names.json) name addresses the blockchain does not, such as sellers.
+    for (const { name, address } of normalizeAddressNames(addressNames)) map.set(address.toLowerCase(), name);
     if (catalog) {
       const ownerName = (isContract) => (isContract ? "Admin multisig" : "Admin");
       for (const [owner, isContract] of [

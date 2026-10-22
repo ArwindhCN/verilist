@@ -250,7 +250,7 @@ teaching implementation; for real money use a widely audited multisig such as Sa
    MetaMask. On the **Admin** tab, enter each address and a name to verify a brand or register a marketplace. In
    dropdowns, choose *Other address…* to paste any wallet address.
 
-**Full step-by-step guide (accounts, faucet, MetaMask, Etherscan, what to show):** see [SEPOLIA_GUIDE.md](SEPOLIA_GUIDE.md). On Sepolia the website turns every transaction hash into a link to Etherscan.
+**Full step-by-step guide (accounts, faucet, MetaMask, Etherscan, what to show):** see [SEPOLIA_GUIDE.md](SEPOLIA_GUIDE.md). On Sepolia the website turns every transaction hash into a link to Etherscan, and an optional local file can show friendly names for seller addresses.
 
 To remove the single-admin risk on a real network, hand the admin role to a multisig: see **Safer admin** above.
 
