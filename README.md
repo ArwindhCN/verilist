@@ -46,6 +46,18 @@ Both registries inherit a small hand-written `Ownable` (the owner is the admin).
 
 ---
 
+## Live on Sepolia (public test network)
+
+The contracts are deployed on the **Sepolia** test network, and their source code is **verified on Etherscan**, so anyone
+can read it and use the *Read Contract* tab without installing anything. (October 2026, Solidity 0.8.24, optimizer 200 runs.)
+
+| Contract | Address | Etherscan |
+|---|---|---|
+| `ProductRegistry` | `0x8CDe83A53062Dafa7122B2b268A1C916cD123e14` | [verified code](https://sepolia.etherscan.io/address/0x8CDe83A53062Dafa7122B2b268A1C916cD123e14#code) |
+| `ListingRegistry` | `0xEcA6cF8891201C4D83F503c439520Fc9aDFf4C57` | [verified code](https://sepolia.etherscan.io/address/0xEcA6cF8891201C4D83F503c439520Fc9aDFf4C57#code) |
+
+How it was done is in [SEPOLIA_GUIDE.md](SEPOLIA_GUIDE.md). Sepolia ETH is a test coin with no value.
+
 ## Prerequisites
 
 - **Node.js 20 or newer** (tested on 24) and npm. Works on Windows, macOS and Linux.

@@ -12,7 +12,7 @@ This guide moves VeriList from your laptop's local chain to the **Sepolia public
 > - Your private key goes **only** in the `.env` file on your own computer. `.env` is git-ignored. **Never** paste it in chat, in a document, or on GitHub.
 > - Never share your MetaMask **recovery phrase** with anyone.
 
-> **Honest note:** this guide was written and its tooling tested on a local simulation (Etherscan's reply was simulated). The first run on the real Sepolia and Etherscan may need small adjustments. If a step looks different on your screen (websites change their wording), search for the new name, or ask for help.
+> **Honest note:** Parts 1 to 4 (accounts, `.env`, deploy, Etherscan verification) were run for real on Sepolia in October 2026 and worked on the first attempt. Part 5 (using the website with MetaMask) has so far only been tested with a mock wallet, so the first real run may need small adjustments. If a step looks different on your screen (websites change their wording), search for the new name, or ask for help.
 
 ---
 

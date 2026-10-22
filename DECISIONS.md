@@ -121,7 +121,7 @@ section 2b; the rest of this file describes the project as a whole.
    (3 as before, plus the timelock itself, intended), and 2 informational notes (`low-level-calls` for the call, `assembly` for the error
    pass-through), also intended. No reentrancy findings.
 
-**Not done / limits of this extension:** never run on Sepolia; no website screen for proposing or approving multisig
+**Not done / limits of this extension:** the multisig has never been run on Sepolia; no website screen for proposing or approving multisig
 actions; no proposal expiry; the multisig has not been audited.
 
 ---
@@ -156,8 +156,10 @@ change any contract.
   stubbed. That exercised the refusals, the retry, "already verified", the constructor arguments and the printed links.
   The website was loaded the same way (a pretend-Sepolia chain behind a mock wallet) and every activity entry carried a
   correct Etherscan link, with no console errors. `ui-smoke` (17/17) and `ui-demo` still pass on the local chain.
-- **Not tested:** the real Etherscan service, the real Sepolia network and a real MetaMask. The guide says so.
-  Those are the next update.
+- **Then run for real (22 Oct 2026):** `deploy:sepolia` and `verify:sepolia` ran against the real Sepolia network and the real
+  Etherscan, with a real Alchemy URL and Etherscan key. Both contracts deployed and verified on the first attempt (addresses in the
+  README), and the source was confirmed independently through Etherscan's API. **Still not tested:** the website driven by a real
+  MetaMask (only the mock wallet), and the multisig on Sepolia.
 - **Gas figures in the guide** were measured on the local chain from the real contracts (both deployments together: about
   4.0 million gas, about 0.004 ETH at 1 gwei).
 
@@ -277,8 +279,8 @@ The rerun after that extension is in section 2b, point 7.
 | Item | What happened |
 |---|---|
 | **Playwright with its own browser** | No Chrome, Chromium or Edge was installed, and downloading a browser (about 170 MB) needs your approval, which I did not have. **Brave Browser** (Chromium-based) was installed, so the smoke test drives it through `playwright-core` with `BROWSER_PATH`. No browser was downloaded and no profile of yours was touched (Playwright uses a temporary profile). Anyone can instead run `npx playwright-core install chromium` and omit `BROWSER_PATH`. |
-| **Real MetaMask** | Not available here. MetaMask mode was tested with a **mock `window.ethereum`** that forwards to the local node. That exercises the same `BrowserProvider` code (connect, `accountsChanged`, `chainChanged`, switch network, sending transactions), but it is not a real MetaMask. |
-| **Sepolia** | `deploy:sepolia` was never run: it needs your RPC URL and a funded test key. The config only adds the network when both exist, and the README documents the steps. Untested against a real network. |
+| **Real MetaMask with the website** | Not yet used. MetaMask mode was tested with a **mock `window.ethereum`** that forwards to the local node. That exercises the same `BrowserProvider` code (connect, `accountsChanged`, `chainChanged`, switch network, sending transactions), but it is not a real MetaMask. |
+| **Sepolia** | **Done on 22 Oct 2026** (after the original delivery): both contracts are deployed on Sepolia and verified on Etherscan (see the README for the addresses). The deployer key stays in the git-ignored `.env`. The multisig and the website with a real MetaMask have not been run there yet. |
 | **README commands, "copy-pasted"** | Verified on a pristine copy of the project (no `node_modules`, no build output, no generated JSON, no empty folders): `npm install`, `npm run frontend:install`, `npm run verify-all`, the 3-terminal flow, `npm run ui-smoke`, the `--grep` tip, the `HH100` and `HH108` messages, and the demo script run literally by `ui-demo`. The Windows-specific commands (`netstat`, `taskkill`, `Copy-Item`) were **not** run (this machine is macOS). |
 | **"wrong-chain" setup screen** | Written, but not exercised (it needs a second local chain with a different id). The other setup screens (no deployment, node down, contracts missing after restart, no wallet, wrong wallet network) were all exercised. |
 
