@@ -112,7 +112,7 @@ section 2b; the rest of this file describes the project as a whole.
    ownership events (and says which registry). The new `NotPendingOwner` error has a friendly message (the
    `ErrorMessages` test insisted on it before it would pass). **The website cannot send multisig proposals**
    (signers use their own tools or a script). That would be a sizeable extra interface and was left out.
-6. **Verification.** 176 tests, still 100% coverage on all four contracts. **Mutation check:** I deliberately broke the
+6. **Verification.** 176 tests at that point (188 after the Etherscan helpers were added, see section 2c), still 100% coverage on all four contracts. **Mutation check:** I deliberately broke the
    contracts five ways (removed the timelock check, removed the "executed" flag, removed the timelock reset, threshold off by one,
    let anyone accept ownership). Each was caught by the tests. `npm run e2e` has 4 more steps (21 to 24), using real
    time travel on the in-process chain. After the changes, `ui-smoke` (17/17) and `ui-demo` still pass on the new contracts,
@@ -123,6 +123,43 @@ section 2b; the rest of this file describes the project as a whole.
 
 **Not done / limits of this extension:** never run on Sepolia; no website screen for proposing or approving multisig
 actions; no proposal expiry; the multisig has not been audited.
+
+---
+
+## 2c. Etherscan verification and explorer links
+
+**Why:** the project only ran on a local chain, so there was nothing to show on Etherscan. This extension adds the
+tooling to publish the contract code and to link transactions, and a step-by-step guide (`SEPOLIA_GUIDE.md`). It does not
+change any contract.
+
+1. **`npm run verify:sepolia`** (`scripts/verify-etherscan.js`) publishes the source of `ProductRegistry` and
+   `ListingRegistry` (and optionally `AdminMultisig`) on Etherscan, using the `hardhat-verify` plugin that already comes
+   with the Hardhat toolbox (version 2.1.3, which supports Etherscan's current V2 API, so **one key works for every
+   network**). Sourcify is switched off in the config to keep the output short.
+2. **It refuses clearly:** on a local chain, with no `ETHERSCAN_API_KEY`, with no `deployment.json`, or when
+   `deployment.json` belongs to another chain.
+3. **It is patient:** right after a deployment Etherscan may not know the contract yet, so the script waits 15 seconds and
+   retries (up to 5 times). "Already verified" counts as success. It exits with code 1 if any contract fails.
+4. **Constructor arguments are handled for you:** `ListingRegistry` gets the `ProductRegistry` address. The optional
+   `AdminMultisig` is verified only when `MULTISIG_ADDRESS` and its settings are given.
+5. **One shared source for explorer addresses:** `frontend/src/lib/explorer.js` (Sepolia and Ethereum mainnet). The website,
+   `deploy.js` and the verify script all use it. It returns nothing for a local chain, so **local behaviour is unchanged**, and it
+   builds a link only for values that look like a real transaction hash or address.
+6. **Website (small):** on a public network, transaction hashes (after a transaction, in the Activity feed, and in the
+   "last transaction" message) become links to Etherscan, and the header shows links to the contract code.
+7. **Housekeeping:** `ETHERSCAN_API_KEY` in `.env.example`; Word's `~$*` lock files in `.gitignore`.
+
+**Testing, and what could not be tested:**
+- 12 new tests (`test/Explorer.test.js`) for the link builder and the verify helpers. A **mutation check** (3 deliberate bugs,
+  for example linking a local chain, or verifying `ListingRegistry` without its argument) was caught every time.
+- The verify script was run on an in-process chain that pretends to be Sepolia, with only the final call to Etherscan
+  stubbed. That exercised the refusals, the retry, "already verified", the constructor arguments and the printed links.
+  The website was loaded the same way (a pretend-Sepolia chain behind a mock wallet) and every activity entry carried a
+  correct Etherscan link, with no console errors. `ui-smoke` (17/17) and `ui-demo` still pass on the local chain.
+- **Not tested:** the real Etherscan service, the real Sepolia network and a real MetaMask. The guide says so.
+  Those are the next update.
+- **Gas figures in the guide** were measured on the local chain from the real contracts (both deployments together: about
+  4.0 million gas, about 0.004 ETH at 1 gwei).
 
 ---
 
@@ -158,7 +195,7 @@ The rerun after that extension is in section 2b, point 7.
   `ListingRegistry`'s ABI for function names that look like detail-editing. The name scan is only a heuristic.
   The behavioural check is the real proof.
 - **Coverage:** 100% statements, branches, functions and lines on all four contracts (target was 95/95/100).
-- **Test count:** 176 Hardhat tests.
+- **Test count:** 188 Hardhat tests (176 for the contracts and the website's error messages, plus 12 for the Etherscan link and verification helpers).
 - **`scripts/e2e-check.js`** has 24 steps (20 original, 4 for the admin handover). Its failure path was verified with a deliberately broken copy
   (exit code 1), not assumed.
 

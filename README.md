@@ -154,6 +154,7 @@ The platform admin has switched this marketplace off.* **Activate** it to bring 
 | `npm run coverage` | Tests with a coverage report. |
 | `npm run e2e` | A self-contained 24-step end-to-end story on an in-process chain, including the multisig handover. Exits 1 on any failure. |
 | `npm run verify-all` | Compile → test → coverage → e2e → frontend build, stopping at the first failure. |
+| `npm run verify:sepolia` | After `deploy:sepolia`: publishes your contract code on **Etherscan** (needs `ETHERSCAN_API_KEY`). See `SEPOLIA_GUIDE.md`. |
 | `npm run multisig:local` | Hands the admin role of a **seeded local chain** over to a 2-of-3 multisig with a timelock (section "Safer admin"). The old admin loses its power, so run it last. |
 | `npm run ui-smoke` | A headless-browser test of the website. Needs the 3-terminal setup running on a freshly seeded chain, plus a browser (see below). It does not change chain state. |
 | `npm run ui-demo` | Plays the 5-minute demo script above automatically (same clicks, same checks). **It changes chain state**, so run it once on a freshly seeded chain; to run it again, restart the node, deploy and seed again. |
@@ -221,16 +222,23 @@ teaching implementation; for real money use a widely audited multisig such as Sa
 
    - `SEPOLIA_RPC_URL`: an RPC endpoint for Sepolia (from Alchemy, Infura, or another provider).
    - `PRIVATE_KEY`: the private key of the **test** wallet. Never use a wallet that holds real funds.
-3. Deploy. This also writes `frontend/src/contracts/deployment.json` for Sepolia:
+3. Deploy. This also writes `frontend/src/contracts/deployment.json` for Sepolia and prints the Etherscan pages:
 
    ```bash
    npm run deploy:sepolia
    ```
-4. Start the website with `npm run frontend:dev`. Because the deployment is not on chain 31337, it opens in
+4. Publish the code on **Etherscan** (put a free `ETHERSCAN_API_KEY` in `.env` first):
+
+   ```bash
+   npm run verify:sepolia
+   ```
+5. Start the website with `npm run frontend:dev`. Because the deployment is not on chain 31337, it opens in
    **MetaMask mode**: connect your wallet, and if MetaMask is on another network, use *Switch network in wallet*.
-5. The deploying wallet is the **Admin**. To act as brands, marketplaces and sellers, create more accounts in
+6. The deploying wallet is the **Admin**. To act as brands, marketplaces and sellers, create more accounts in
    MetaMask. On the **Admin** tab, enter each address and a name to verify a brand or register a marketplace. In
    dropdowns, choose *Other address…* to paste any wallet address.
+
+**Full step-by-step guide (accounts, faucet, MetaMask, Etherscan, what to show):** see [SEPOLIA_GUIDE.md](SEPOLIA_GUIDE.md). On Sepolia the website turns every transaction hash into a link to Etherscan.
 
 To remove the single-admin risk on a real network, hand the admin role to a multisig: see **Safer admin** above.
 
@@ -281,6 +289,9 @@ If 5173 is busy, Vite uses the next free port and prints it. Open the address it
 **`vite: command not found` / `Cannot find module 'ethers'` in the frontend.**
 Run `npm run frontend:install`. (`npm run verify-all` does this for you if needed.)
 
+**`ETHERSCAN_API_KEY is missing` when running `verify:sepolia`.**
+Add a free key from etherscan.io/myapikey to `.env`. More fixes are in `SEPOLIA_GUIDE.md`.
+
 **`HH100: Network sepolia doesn't exist`.**
 `.env` is missing or `SEPOLIA_RPC_URL` / `PRIVATE_KEY` is empty. The Sepolia network is only added when both are set.
 
@@ -327,7 +338,7 @@ test titles, so you can run one rule's tests with, for example, `npx hardhat tes
 I also checked that these tests really catch bugs: five deliberate breakages of the contracts (no timelock check, no
 "executed" flag, no timelock reset, threshold off by one, anyone can accept ownership) were each caught.
 
-Other tests: `ETH handling` groups in both contract suites (sending ETH reverts), pagination tests, the ownership
+Other tests: `test/Explorer.test.js` (Etherscan links and the verify-script helpers), `ETH handling` groups in both contract suites (sending ETH reverts), pagination tests, the ownership
 tests, `test/Integration.test.js` (the whole Fastrack story), and `test/ErrorMessages.test.js` (every custom
 error has a friendly message in the website).
 
@@ -337,9 +348,9 @@ error has a friendly message in the website).
 
 ```
 contracts/    Ownable.sol · ProductRegistry.sol · ListingRegistry.sol · AdminMultisig.sol
-test/         ProductRegistry · ListingRegistry · AdminMultisig · Integration · ErrorMessages
-scripts/      deploy.js · seed.js · e2e-check.js · verify-all.js · deploy-multisig.js · ui-smoke.js · ui-demo.js
+test/         ProductRegistry · ListingRegistry · AdminMultisig · Integration · ErrorMessages · Explorer
+scripts/      deploy.js · seed.js · e2e-check.js · verify-all.js · deploy-multisig.js · verify-etherscan.js · ui-smoke.js · ui-demo.js
 frontend/     Vite + React app (src/contracts/ holds deployment.json and demo-accounts.json, written by the scripts)
 hardhat.config.js · package.json · .env.example · .gitignore
-README.md · VIVA_GUIDE.md · DECISIONS.md
+README.md · SEPOLIA_GUIDE.md · VIVA_GUIDE.md · DECISIONS.md
 ```

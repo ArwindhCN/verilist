@@ -22,7 +22,8 @@
     "ui-smoke": "node scripts/ui-smoke.js",
     "ui-demo": "node scripts/ui-demo.js",
     "multisig:local": "hardhat run scripts/deploy-multisig.js --network localhost",
-    "multisig:sepolia": "hardhat run scripts/deploy-multisig.js --network sepolia"
+    "multisig:sepolia": "hardhat run scripts/deploy-multisig.js --network sepolia",
+    "verify:sepolia": "hardhat run scripts/verify-etherscan.js --network sepolia"
   },
   "license": "MIT",
   "devDependencies": {

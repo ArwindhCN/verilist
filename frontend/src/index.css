@@ -1275,3 +1275,17 @@ summary {
   border-left-color: var(--bad);
   color: var(--bad);
 }
+
+/* ---------- links to Etherscan (public networks only) ---------- */
+
+.ext-link {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ext-link:hover {
+  background: var(--accent-soft);
+}
+.ext-link code {
+  color: inherit;
+}

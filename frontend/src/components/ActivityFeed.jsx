@@ -3,7 +3,8 @@
 // later pass reads only the new blocks. Each log is keyed by txHash:logIndex, so nothing appears twice.
 import { useEffect, useRef, useState } from "react";
 import { useChain } from "../context/chainState.js";
-import { formatClock, shortHash } from "../lib/format.js";
+import { formatClock } from "../lib/format.js";
+import { TxLink } from "./ui.jsx";
 
 const POLL_MS = 1500;
 const CHUNK = 2000; // blocks per getLogs call, so public RPC providers do not reject the range
@@ -191,7 +192,7 @@ export function ActivityFeed() {
             <li key={item.key}>
               <p className="feed-text">{text}</p>
               <p className="feed-meta">
-                {formatClock(item.time)} · block {item.blockNumber} · <code className="mono">{shortHash(item.txHash)}</code>
+                {formatClock(item.time)} · block {item.blockNumber} · <TxLink hash={item.txHash} />
               </p>
             </li>
           ))}

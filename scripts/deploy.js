@@ -6,6 +6,7 @@
 //   npm run deploy:sepolia   (needs SEPOLIA_RPC_URL and PRIVATE_KEY in .env)
 const fs = require("fs");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const hre = require("hardhat");
 
 const OUTPUT_DIR = path.join(__dirname, "..", "frontend", "src", "contracts");
@@ -63,6 +64,13 @@ async function main() {
   if (network.name === "localhost") {
     console.log("Next step: npm run seed:local");
   } else {
+    // On a public network, print the Etherscan pages of the new contracts (one shared source for the links).
+    const { explorerUrl } = await import(pathToFileURL(path.join(__dirname, "..", "frontend", "src", "lib", "explorer.js")).href);
+    for (const [name, address] of Object.entries(deployment.addresses)) {
+      const link = explorerUrl(chainId, "address", address);
+      if (link) console.log(`${name} on Etherscan: ${link}`);
+    }
+    console.log("Next step: npm run verify:sepolia   (publishes the code on Etherscan; see SEPOLIA_GUIDE.md)");
     console.log(`Done. Deployed at block ${deployment.deploymentBlock}. Start the frontend with: npm run frontend:dev`);
   }
 }

@@ -2,7 +2,8 @@
 // address display, badges and the "you cannot do this with this account" notice.
 import { useEffect, useRef, useState } from "react";
 import { useChain } from "../context/chainState.js";
-import { shortAddress } from "../lib/format.js";
+import { explorerUrl } from "../lib/explorer.js";
+import { shortAddress, shortHash } from "../lib/format.js";
 import { STATUS_LABEL, statusTone } from "../lib/status.js";
 
 const ICON_PATHS = {
@@ -125,6 +126,21 @@ export function Address({ value }) {
   );
 }
 
+/**
+ * A transaction hash, shortened. On a public network (Sepolia, mainnet) it is a link to the transaction on
+ * Etherscan; on a local chain, which has no explorer, it stays plain text.
+ */
+export function TxLink({ hash }) {
+  const { deployment } = useChain();
+  const url = explorerUrl(deployment?.chainId, "tx", hash);
+  if (!url) return <code className="mono">{shortHash(hash)}</code>;
+  return (
+    <a className="ext-link" href={url} target="_blank" rel="noopener noreferrer" aria-label={`View transaction ${shortHash(hash)} on Etherscan (opens in a new tab)`}>
+      <code className="mono">{shortHash(hash)}</code> ↗
+    </a>
+  );
+}
+
 /** A hash shown shortened, with the full value on hover and a copy button. */
 export function Hash({ value, full = false }) {
   if (!value) return null;
@@ -201,7 +217,7 @@ export function TxToast({ tx, onDismiss }) {
       <p>
         {ok ? (
           <>
-            Last transaction confirmed in block {tx.block} · tx <code className="mono">{tx.hash.slice(0, 10)}…{tx.hash.slice(-6)}</code>
+            Last transaction confirmed in block {tx.block} · tx <TxLink hash={tx.hash} />
           </>
         ) : (
           tx.message

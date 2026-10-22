@@ -1,5 +1,6 @@
 // Top-right controls: network indicator and the account switcher (demo mode) or wallet connect (MetaMask mode).
 import { useChain } from "../context/chainState.js";
+import { explorerCodeUrl } from "../lib/explorer.js";
 import { accountLabel } from "../lib/format.js";
 import { Address } from "./ui.jsx";
 
@@ -13,6 +14,17 @@ export function AccountBar() {
         <span className="network-dot" aria-hidden="true" />
         {deployment.network} · chain {chainId}
       </p>
+      {explorerCodeUrl(chainId, deployment.addresses.ProductRegistry) && (
+        <p className="network">
+          Contracts on Etherscan:{" "}
+          <a className="ext-link" href={explorerCodeUrl(chainId, deployment.addresses.ProductRegistry)} target="_blank" rel="noopener noreferrer">
+            ProductRegistry ↗
+          </a>{" "}
+          <a className="ext-link" href={explorerCodeUrl(chainId, deployment.addresses.ListingRegistry)} target="_blank" rel="noopener noreferrer">
+            ListingRegistry ↗
+          </a>
+        </p>
+      )}
 
       {mode === "demo" ? (
         <div className="account-switch">

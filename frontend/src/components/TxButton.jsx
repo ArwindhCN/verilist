@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useChain } from "../context/chainState.js";
 import { shortHash } from "../lib/format.js";
-import { CopyButton, Icon, Spinner } from "./ui.jsx";
+import { CopyButton, Icon, Spinner, TxLink } from "./ui.jsx";
 
 /**
  * @param {object} props
@@ -76,7 +76,7 @@ export function TxButton({ action, onConfirmed, disabled = false, disabledReason
         {tx.status === "pending" && <span className="tx-pending">Pending · tx {shortHash(tx.hash)}</span>}
         {tx.status === "confirmed" && (
           <span className="tx-ok">
-            <Icon name="check" size={14} /> Confirmed in block {tx.block} · tx <code className="mono">{shortHash(tx.hash)}</code>
+            <Icon name="check" size={14} /> Confirmed in block {tx.block} · tx <TxLink hash={tx.hash} />
             <CopyButton text={tx.hash} label="Copy transaction hash" />
           </span>
         )}
