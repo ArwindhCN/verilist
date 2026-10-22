@@ -158,6 +158,7 @@ function CreateListingForm({ marketplace }) {
           onChange={setSeller}
           options={sellerOptions}
           hint="The wallet of the seller this listing is for."
+          nameable
         />
 
         <div className="field">

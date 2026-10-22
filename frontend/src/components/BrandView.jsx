@@ -285,6 +285,7 @@ function SellerList({ product, sellers, verified }) {
           value={seller}
           onChange={setSeller}
           options={options}
+          nameable
         />
         <TxButton
           disabled={!verified || !isAddress(seller)}

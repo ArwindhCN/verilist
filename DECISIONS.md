@@ -170,13 +170,23 @@ change any contract.
 **Why:** the contracts store names only for brands and marketplaces, so a seller such as RetailNet appeared on the website as
 a short address. A demo is much clearer with names.
 
+0. **Naming inside the website (simplest).** Under the **Seller** picker (Marketplace tab) and the **Authorize a seller** picker
+   (Brand tab), pasting an address that has no name shows a **Name this address** box. Type a name and press Enter. The name is kept in
+   this browser's `localStorage`, the address becomes a normal choice in every seller dropdown, and a **Rename / Forget** link lets you
+   change it. A name typed here wins over the file. It is limited to 30 characters, extra spaces are removed, and if the browser
+   blocks storage the site still works (the name just is not remembered). **Nothing goes on the blockchain**, and the names are not
+   shared with other people or other computers. An address that already has a name (a brand, a marketplace, the admin, a demo account)
+   is not offered a second one.
 1. An optional **local file**, `frontend/src/contracts/address-names.json` (`{ "RetailNet": "0x..." }`), gives any address a
    nickname. It only changes what the website displays; **nothing is written to the blockchain** and no contract changed.
 2. The nicknames are used in the Verify page, the Activity panel, error messages, and the Marketplace **Seller** dropdown (in
    MetaMask mode, so a seller can be picked by name instead of pasted). On-chain names (brands, marketplaces, the admin) still take priority.
 3. The file is read leniently: a wrong capital letter is forgiven, and a broken line is skipped, so a typo can never break the site.
    It is not committed (it is in the untracked `frontend/src/contracts` folder, like the other generated files).
-4. **Tests:** 6 new tests (`test/AddressNames.test.js`). A mutation check found that my first test version did **not** cover the
+4. **Tests:** 6 new tests for the file (`test/AddressNames.test.js`), plus 11 more for the in-app names (reading and writing the saved text,
+   rename, forget, merge order, bad input). A mutation check on those 11 tests (11 deliberate bugs) caught all but one, and the one
+   that survived changes nothing observable (an array is skipped anyway because its keys are not addresses). `ui-smoke` grew from
+   17 to 19 steps: it names an address in the browser, reloads, finds the name on the Brand tab, and forgets it. A mutation check found that my first test version did **not** cover the
    "mixed-case address with a wrong capital letter" case (ethers already accepts all-upper and all-lower addresses), so a deliberate
    bug survived. I added a test for that case, and the bug is now caught.
 5. **Built in an isolated copy first** (with no `.env`), so the website running a live Sepolia demo was not disturbed. In the copy, a
@@ -218,7 +228,7 @@ The rerun after that extension is in section 2b, point 7.
   `ListingRegistry`'s ABI for function names that look like detail-editing. The name scan is only a heuristic.
   The behavioural check is the real proof.
 - **Coverage:** 100% statements, branches, functions and lines on all four contracts (target was 95/95/100).
-- **Test count:** 194 Hardhat tests (176 for the contracts and the website's error messages, 12 for the Etherscan link and verification helpers, and 6 for the address nicknames).
+- **Test count:** 205 Hardhat tests (176 for the contracts and the website's error messages, 12 for the Etherscan link and verification helpers, and 17 for the address nicknames).
 - **`scripts/e2e-check.js`** has 24 steps (20 original, 4 for the admin handover). Its failure path was verified with a deliberately broken copy
   (exit code 1), not assumed.
 

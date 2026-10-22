@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserProvider, Contract, JsonRpcProvider, JsonRpcSigner, Network, getAddress } from "ethers";
 import { addressNames, deployment, demoAccounts, LOCAL_CHAIN_ID, LOCAL_RPC_URL } from "../lib/config.js";
-import { normalizeAddressNames } from "../lib/addressNames.js";
+import { mergeAddressNames, normalizeAddressNames, parseSavedNames, serializeSavedNames, withSavedName } from "../lib/addressNames.js";
 import { fetchCatalog } from "../lib/chain.js";
 import { decodeError } from "../lib/errors.js";
 import { ChainContext } from "./chainState.js";
@@ -11,6 +11,7 @@ import { readStored, shortAddress, shortHash, writeStored } from "../lib/format.
 
 const MODE_KEY = "verilist-mode";
 const ACCOUNT_KEY = "verilist-demo-account";
+const NAMES_KEY = "verilist-address-names"; // names typed into the website, kept in this browser only
 
 /** Local demo mode for a Hardhat deployment, MetaMask mode for everything else (for example Sepolia). */
 function initialMode() {
@@ -94,6 +95,7 @@ export function ChainProvider({ children }) {
   const [catalogError, setCatalogError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [lastTx, setLastTx] = useState(null); // result of a transaction whose button has since disappeared
+  const [savedNames, setSavedNames] = useState(() => parseSavedNames(readStored(NAMES_KEY))); // [{ name, address }]
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
   const retry = useCallback(() => setBootKey((k) => k + 1), []);
@@ -204,14 +206,27 @@ export function ChainProvider({ children }) {
     };
   }, [read, refreshKey]);
 
+  // ----- nicknames: the optional file plus names typed into the website (the typed ones win) -----
+  const nicknames = useMemo(() => mergeAddressNames(normalizeAddressNames(addressNames), savedNames), [savedNames]);
+  /** Saves (or, with an empty name, forgets) a name for an address. It only changes this browser. */
+  const saveName = useCallback(
+    (address, name) => {
+      const next = withSavedName(savedNames, address, name);
+      writeStored(NAMES_KEY, serializeSavedNames(next));
+      setSavedNames(next);
+    },
+    [savedNames]
+  );
+
   // ----- names: demo role names first, then your own nicknames, then the names registered on chain -----
   const nameMap = useMemo(() => {
     const map = new Map();
     if (deployment?.chainId === LOCAL_CHAIN_ID && demoAccounts) {
       for (const [name, info] of Object.entries(demoAccounts)) map.set(info.address.toLowerCase(), name);
     }
-    // Your own nicknames (address-names.json) name addresses the blockchain does not, such as sellers.
-    for (const { name, address } of normalizeAddressNames(addressNames)) map.set(address.toLowerCase(), name);
+    // Your own nicknames (address-names.json, then names typed into the website) name addresses the blockchain
+    // does not, such as sellers.
+    for (const { name, address } of nicknames) map.set(address.toLowerCase(), name);
     if (catalog) {
       const ownerName = (isContract) => (isContract ? "Admin multisig" : "Admin");
       for (const [owner, isContract] of [
@@ -224,7 +239,7 @@ export function ChainProvider({ children }) {
       for (const market of catalog.marketplaces) if (market.name) map.set(market.address.toLowerCase(), market.name);
     }
     return map;
-  }, [catalog]);
+  }, [catalog, nicknames]);
 
   const labelFor = useCallback((address) => (address ? (nameMap.get(address.toLowerCase()) ?? null) : null), [nameMap]);
   const nameOf = useCallback((address) => labelFor(address) ?? shortAddress(address), [labelFor]);
@@ -295,6 +310,9 @@ export function ChainProvider({ children }) {
     catalog,
     catalogError,
     labelFor,
+    nicknames,
+    savedNames,
+    saveName,
     nameOf,
     productName,
     explainError,

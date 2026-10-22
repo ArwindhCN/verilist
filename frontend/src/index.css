@@ -1066,6 +1066,34 @@ summary {
   padding: 8px 0;
   border-bottom: 1px solid var(--rule);
 }
+/* "Name this address" under a seller picker */
+.nickname-form {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+.nickname-form label {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.nickname-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nickname-row input {
+  flex: 1 1 160px;
+  width: auto;
+}
+.nickname-saved {
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+.nickname-saved .btn {
+  min-height: 32px;
+}
+
 .authorize {
   display: grid;
   gap: 8px;

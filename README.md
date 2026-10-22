@@ -58,6 +58,11 @@ can read it and use the *Read Contract* tab without installing anything. (Octobe
 
 How it was done is in [SEPOLIA_GUIDE.md](SEPOLIA_GUIDE.md). Sepolia ETH is a test coin with no value.
 
+**Naming sellers.** The blockchain names only brands and marketplaces, so a seller shows as a short address. On the Marketplace tab
+(Seller) and the Brand tab (Authorize a seller), paste an address with **Other address…** and use the **Name this address** box to give
+it a name such as RetailNet. The name is saved in your browser only; nothing is written to the blockchain. (A local
+`address-names.json` file can do the same; see [SEPOLIA_GUIDE.md](SEPOLIA_GUIDE.md).)
+
 ## Prerequisites
 
 - **Node.js 20 or newer** (tested on 24) and npm. Works on Windows, macOS and Linux.

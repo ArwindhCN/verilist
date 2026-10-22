@@ -142,8 +142,17 @@ Open <http://localhost:5173>. Because the deployment is on Sepolia, the site ope
 
 ### Optional: give sellers friendly names
 The blockchain stores names only for brands and marketplaces. A seller such as RetailNet is just an address, so the site shows
-`0x1234…abcd`. To show **RetailNet** instead, create the file `frontend/src/contracts/address-names.json` (it is local, never
-uploaded):
+`0x1234…abcd`. You can name it **inside the website**:
+
+1. Go to the **Marketplace** tab (as Flipkart) or the **Brand** tab (**Authorize a seller**, as the brand).
+2. In the seller picker choose **Other address…** and paste the address.
+3. A **Name this address** box appears. Type `RetailNet` (or `FakeDeals`) and click **Save name** (or press Enter).
+
+The address is now in the seller dropdown by name, and the name shows on the Verify page, in the Activity panel and in error
+messages. **Rename** or **Forget** appear under the picker. The names are kept in *this browser only* (use the same browser and
+address, `localhost:5173`, for the demo). Nothing is written to the blockchain and nobody else sees them.
+
+*Alternative, from a file:* create `frontend/src/contracts/address-names.json` (local, never uploaded) and save it; the site reloads by itself:
 
 ```json
 {
@@ -152,9 +161,7 @@ uploaded):
 }
 ```
 
-Save it and the website reloads by itself. The names appear on the Verify page, in the Activity panel, and in the **Seller**
-dropdown of the Marketplace tab, so you can pick RetailNet or FakeDeals by name instead of pasting an address. Wrong or broken
-lines are ignored. This only changes what *your* website displays; nothing is written to the blockchain.
+A name typed in the website wins over the file. Wrong or broken lines in the file are ignored.
 
 ### The story with real accounts
 Every action opens a MetaMask pop-up. Click **Confirm**. On Sepolia a transaction takes about 12 seconds to confirm (slower than your local chain).

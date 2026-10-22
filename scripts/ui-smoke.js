@@ -119,6 +119,45 @@ async function runWalletTests(browser, step, demoAccounts) {
     assert.match(await page.locator(".tx-failed").innerText(), /FakeDeals is not authorized by the brand/);
   });
 
+  // An unseeded local account, so the app has no name for it yet.
+  const UNNAMED = "0xdd2fd4581271e230360230f9337d5c0430bf44c0";
+
+  await step("Naming in the app: a pasted seller address can be named, then is picked by name", async () => {
+    await page.locator("#listing-seller").selectOption({ label: "Other address…" });
+    await page.locator('input[aria-label="Seller: address"]').fill(UNNAMED);
+    await page.getByLabel("Name this address").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Save name" }).isDisabled(), true, "no name typed yet");
+    await page.getByLabel("Name this address").fill("PopupShop");
+    await page.getByRole("button", { name: "Save name" }).click();
+    await page.getByText("Saved name:").waitFor();
+    // The address is now an ordinary choice in the dropdown and is selected.
+    assert.equal(await page.locator('#listing-seller option:checked').innerText(), "PopupShop");
+    assert.equal((await page.locator("#listing-seller").inputValue()).toLowerCase(), UNNAMED);
+    assert.equal(await page.locator('input[aria-label="Seller: address"]').count(), 0, "the typed box is gone");
+  });
+
+  await step("Naming in the app: the name survives a reload and shows on the Brand tab; Forget removes it", async () => {
+    await page.reload();
+    await page.getByRole("button", { name: "Connect wallet" }).first().click();
+    await page.goto(`${BASE_URL}/#/brand`);
+    await page.locator("article.product").first().waitFor();
+    const picker = page.locator('select[id^="auth-"]').first();
+    await picker.selectOption({ label: "PopupShop" });
+    await page.getByText("Saved name:").waitFor();
+    await page.getByRole("button", { name: "Forget" }).click();
+    // Forgotten: the name is gone from the dropdown, the address stays in the box, and it can be named again.
+    assert.equal(await picker.locator("option", { hasText: "PopupShop" }).count(), 0);
+    assert.equal((await page.locator('input[aria-label="Authorize a seller: address"]').first().inputValue()).toLowerCase(), UNNAMED);
+    await page.getByLabel("Name this address").waitFor();
+    // An address that already has a name (a demo account) is not offered a second one.
+    await page.locator('input[aria-label="Authorize a seller: address"]').first().fill(accounts.FakeDeals);
+    assert.equal(await page.getByLabel("Name this address").count(), 0);
+    // Back to the marketplace account, as the next step expects (the reload reset the mock wallet to Fastrack).
+    await page.evaluate((address) => window.__wallet.switchAccount(address), accounts.Flipkart);
+    await page.goto(`${BASE_URL}/#/marketplace`);
+    await page.getByRole("heading", { name: "Create a listing" }).waitFor();
+  });
+
   await step("MetaMask mode (mock wallet): wrong network shows a switch button, and chainChanged recovers", async () => {
     await page.evaluate(() => window.__wallet.setChain("0x1"));
     await page.getByText("Your wallet is on the wrong network").waitFor();

@@ -5,11 +5,17 @@ const { expect } = require("chai");
 
 const RETAILNET = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"; // a public Hardhat test account
 const OTHER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+const THIRD = "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"; // another public Hardhat test account
 
 describe("Address nicknames (frontend/src/lib/addressNames.js)", function () {
   let normalizeAddressNames;
+  let parseSavedNames;
+  let serializeSavedNames;
+  let withSavedName;
+  let mergeAddressNames;
+  let MAX_NAME_LENGTH;
   before(async function () {
-    ({ normalizeAddressNames } = await import(pathToFileURL(path.join(__dirname, "..", "frontend", "src", "lib", "addressNames.js")).href));
+    ({ normalizeAddressNames, parseSavedNames, serializeSavedNames, withSavedName, mergeAddressNames, MAX_NAME_LENGTH } = await import(pathToFileURL(path.join(__dirname, "..", "frontend", "src", "lib", "addressNames.js")).href));
   });
 
   it("turns a name -> address file into a clean list, in checksum form", function () {
@@ -49,5 +55,95 @@ describe("Address nicknames (frontend/src/lib/addressNames.js)", function () {
 
   it("returns an empty list for a missing or wrongly shaped file", function () {
     for (const raw of [null, undefined, "text", 5, [], [["A", RETAILNET]]]) expect(normalizeAddressNames(raw)).to.deep.equal([]);
+  });
+
+  describe("names typed into the website (saved in the browser)", function () {
+    it("reads the saved text back into a clean list, in checksum form", function () {
+      const text = JSON.stringify({ [RETAILNET.toLowerCase()]: "RetailNet", [OTHER]: "  Fake   Deals " });
+      expect(parseSavedNames(text)).to.deep.equal([
+        { name: "RetailNet", address: RETAILNET },
+        { name: "Fake Deals", address: OTHER },
+      ]);
+    });
+
+    it("returns an empty list for nothing, broken text, or the wrong shape (a cleared or damaged browser store)", function () {
+      for (const text of [null, undefined, "", "not json", "5", "null", "[]", '["a"]', 42]) expect(parseSavedNames(text)).to.deep.equal([]);
+    });
+
+    it("skips entries with a bad address or an empty or non-text name, but keeps the good ones", function () {
+      const text = JSON.stringify({ "0x1234": "Short", [RETAILNET]: "", [OTHER]: 7, [THIRD]: "Good" });
+      expect(parseSavedNames(text)).to.deep.equal([{ name: "Good", address: THIRD }]);
+    });
+
+    it("keeps one name per address when the saved text lists the same address twice in different capitals", function () {
+      const text = JSON.stringify({ [RETAILNET]: "First", [RETAILNET.toLowerCase()]: "Second" });
+      expect(parseSavedNames(text)).to.deep.equal([{ name: "First", address: RETAILNET }]);
+    });
+
+    it("cuts a very long name to the maximum length", function () {
+      const [entry] = parseSavedNames(JSON.stringify({ [RETAILNET]: "x".repeat(MAX_NAME_LENGTH + 20) }));
+      expect(entry.name).to.equal("x".repeat(MAX_NAME_LENGTH));
+    });
+
+    it("saves what it stores: serialize then parse gives the same list", function () {
+      const list = [
+        { name: "RetailNet", address: RETAILNET },
+        { name: "FakeDeals", address: OTHER },
+      ];
+      expect(parseSavedNames(serializeSavedNames(list))).to.deep.equal(list);
+      expect(parseSavedNames(serializeSavedNames([]))).to.deep.equal([]);
+    });
+
+    it("adds a new name at the end and cleans it", function () {
+      const list = [{ name: "RetailNet", address: RETAILNET }];
+      expect(withSavedName(list, OTHER.toLowerCase(), "  Fake   Deals ")).to.deep.equal([
+        { name: "RetailNet", address: RETAILNET },
+        { name: "Fake Deals", address: OTHER },
+      ]);
+    });
+
+    it("renames an address in place instead of adding a second entry, whatever capitals the address is typed in", function () {
+      const list = [
+        { name: "RetailNet", address: RETAILNET },
+        { name: "Fake", address: OTHER },
+      ];
+      expect(withSavedName(list, OTHER.toLowerCase(), "FakeDeals")).to.deep.equal([
+        { name: "RetailNet", address: RETAILNET },
+        { name: "FakeDeals", address: OTHER },
+      ]);
+    });
+
+    it("forgets an address when the new name is empty", function () {
+      const list = [
+        { name: "RetailNet", address: RETAILNET },
+        { name: "FakeDeals", address: OTHER },
+      ];
+      expect(withSavedName(list, OTHER, "   ")).to.deep.equal([{ name: "RetailNet", address: RETAILNET }]);
+      expect(withSavedName(list, OTHER, "")).to.have.length(1);
+    });
+
+    it("ignores a value that is not an address, and never changes the list it was given", function () {
+      const list = Object.freeze([Object.freeze({ name: "RetailNet", address: RETAILNET })]);
+      expect(withSavedName(list, "0x1234", "Nope")).to.equal(list);
+      expect(withSavedName(list, undefined, "Nope")).to.equal(list);
+      withSavedName(list, OTHER, "FakeDeals"); // would throw on a frozen array if it modified the input
+      expect(list).to.have.length(1);
+    });
+
+    it("merges the file names and the saved names: the saved name wins for the same address", function () {
+      const fromFile = [
+        { name: "RetailNet (file)", address: RETAILNET },
+        { name: "Only in file", address: THIRD },
+      ];
+      const saved = [
+        { name: "RetailNet", address: RETAILNET },
+        { name: "FakeDeals", address: OTHER },
+      ];
+      const merged = mergeAddressNames(fromFile, saved);
+      expect(merged.map((e) => e.name)).to.deep.equal(["RetailNet", "Only in file", "FakeDeals"]);
+      expect(merged.find((e) => e.address === RETAILNET).name).to.equal("RetailNet");
+      expect(mergeAddressNames([], [])).to.deep.equal([]);
+      expect(mergeAddressNames(fromFile, [])).to.deep.equal(fromFile);
+    });
   });
 });
