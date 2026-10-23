@@ -37,19 +37,24 @@ You can reduce this to fewer accounts, but then one account plays several roles 
 2. Request test ETH to the **`VeriList Admin`** address (click the account name in MetaMask to copy it).
 3. Send a little to the other three accounts from MetaMask (for example **0.01 ETH** each).
 
-**How much do you need?** I measured the real gas use of each action on the contracts:
+**How much do you need?** These are the gas amounts the **real transactions used on Sepolia** (read from the public chain, mostly at about 1 to 1.5 gwei). Sepolia charges roughly five times more than a local test chain for *creating new storage*, so numbers measured on a local chain are far too low:
 
-| Action | Gas | Cost at 1 gwei |
+| Action | Gas on Sepolia | Cost at 1.5 gwei |
 |---|---|---|
-| Deploy `ProductRegistry` + `ListingRegistry` | about 4.0 million | about **0.004 ETH** (about 0.04 ETH on a busy network) |
-| Admin: verify a brand / register a marketplace | about 117,000 | about 0.0001 ETH |
-| Brand: register a product | about 347,000 | about 0.0003 ETH |
-| Brand: authorize a seller | about 120,000 | about 0.0001 ETH |
-| Marketplace: create a listing | about 316,000 | about 0.0003 ETH |
-| Brand: update details | about 197,000 | about 0.0002 ETH |
-| Brand: revoke a seller | about 31,000 | about 0.00003 ETH |
+| Deploy `ProductRegistry` + `ListingRegistry` | about 28 million (14.5 million + 13.6 million) | about **0.04 ETH** |
+| Admin: verify a brand / register a marketplace (first time) | about 365,000 to 463,000 | about 0.0006 to 0.0007 ETH |
+| Admin: re-verify a brand that was revoked | about 36,000 to 46,000 | about 0.00007 ETH |
+| Brand: register a product | about 1.4 to 1.6 million | about 0.002 to 0.0024 ETH |
+| Brand: authorize a seller | about 140,000 to 466,000 (the first seller of a product costs the most) | about 0.0002 to 0.0007 ETH |
+| Marketplace: create a listing | about 1.2 to 1.4 million | about 0.0018 to 0.0021 ETH |
+| Brand: switch a product on or off | about 34,000 | about 0.00005 ETH |
+| Brand: revoke a seller | about 30,000 | about 0.00005 ETH |
+| Marketplace or seller: remove a listing | about 40,000 | about 0.00006 ETH |
+| Admin: revoke a brand / switch a marketplace on or off | about 31,000 to 33,000 | about 0.00005 ETH |
 
-So about **0.05 ETH for the Admin** and **0.01 ETH for each other account** is plenty. (Cost = gas × the gas price at that moment. Sepolia is usually very cheap.)
+Updating a product's details was not run on the live network. A model that matches the real transactions to within a few percent estimates about 0.9 million gas (about 0.0014 ETH) for a typical update.
+
+So plan for about **0.05 ETH for the Admin** (deploying is the big cost) and **0.02 ETH for each brand and marketplace account** (a few products and listings). A seller account that only receives authorization needs nothing. (Cost = gas used x the gas price at that moment; a busy network costs more.)
 
 ### 3. An RPC URL (how your computer talks to Sepolia)
 1. Create a free account at **alchemy.com** or **infura.io**.

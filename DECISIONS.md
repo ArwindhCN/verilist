@@ -160,8 +160,11 @@ change any contract.
   Etherscan, with a real Alchemy URL and Etherscan key. Both contracts deployed and verified on the first attempt (addresses in the
   README), and the source was confirmed independently through Etherscan's API. **Still not tested:** the website driven by a real
   MetaMask (only the mock wallet), and the multisig on Sepolia.
-- **Gas figures in the guide** were measured on the local chain from the real contracts (both deployments together: about
-  4.0 million gas, about 0.004 ETH at 1 gwei).
+- **Gas figures in the guide (corrected).** The first version of the guide quoted gas measured on the local chain
+  (both deployments together: about 4.0 million gas, about 0.004 ETH at 1 gwei). The real Sepolia transactions turned out
+  to cost about four to seven times more, because Sepolia charges about 110,975 gas for each new storage slot against
+  22,180 on a local chain (measured with eth_estimateGas on tiny programs). The real deployments used 14.5 and 13.6 million
+  gas. The guide now quotes the gas the real transactions used.
 
 ---
 
