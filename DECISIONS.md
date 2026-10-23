@@ -228,7 +228,7 @@ The rerun after that extension is in section 2b, point 7.
   `ListingRegistry`'s ABI for function names that look like detail-editing. The name scan is only a heuristic.
   The behavioural check is the real proof.
 - **Coverage:** 100% statements, branches, functions and lines on all four contracts (target was 95/95/100).
-- **Test count:** 205 Hardhat tests (176 for the contracts and the website's error messages, 12 for the Etherscan link and verification helpers, and 17 for the address nicknames).
+- **Test count:** 210 Hardhat tests (176 for the contracts and the website's error messages, 12 for the Etherscan link and verification helpers, 17 for the address nicknames, and 5 for how brand and marketplace names are combined).
 - **`scripts/e2e-check.js`** has 24 steps (20 original, 4 for the admin handover). Its failure path was verified with a deliberately broken copy
   (exit code 1), not assumed.
 

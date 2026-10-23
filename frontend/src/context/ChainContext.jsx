@@ -5,6 +5,7 @@ import { BrowserProvider, Contract, JsonRpcProvider, JsonRpcSigner, Network, get
 import { addressNames, deployment, demoAccounts, LOCAL_CHAIN_ID, LOCAL_RPC_URL } from "../lib/config.js";
 import { mergeAddressNames, normalizeAddressNames, parseSavedNames, serializeSavedNames, withSavedName } from "../lib/addressNames.js";
 import { fetchCatalog } from "../lib/chain.js";
+import { onChainNames } from "../lib/onChainNames.js";
 import { decodeError } from "../lib/errors.js";
 import { ChainContext } from "./chainState.js";
 import { readStored, shortAddress, shortHash, writeStored } from "../lib/format.js";
@@ -235,8 +236,7 @@ export function ChainProvider({ children }) {
       ]) {
         if (!map.has(owner.toLowerCase()) || isContract) map.set(owner.toLowerCase(), ownerName(isContract));
       }
-      for (const brand of catalog.brands) if (brand.name) map.set(brand.address.toLowerCase(), brand.name);
-      for (const market of catalog.marketplaces) if (market.name) map.set(market.address.toLowerCase(), market.name);
+      for (const [address, name] of onChainNames(catalog.brands, catalog.marketplaces)) map.set(address, name);
     }
     return map;
   }, [catalog, nicknames]);
